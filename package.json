@@ -2,6 +2,14 @@
   "name": "openclaw-groupme",
   "version": "0.0.2",
   "description": "OpenClaw GroupMe channel plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oddrationale/openclaw-groupme"
+  },
+  "homepage": "https://github.com/oddrationale/openclaw-groupme#readme",
+  "bugs": {
+    "url": "https://github.com/oddrationale/openclaw-groupme/issues"
+  },
   "type": "module",
   "dependencies": {
     "zod": "^4.3.6"
