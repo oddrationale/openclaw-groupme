@@ -68,7 +68,9 @@ function parseStringArray(value: unknown): string[] {
     return [];
   }
 
-  return value.map((entry) => readString(entry)).filter((entry): entry is string => Boolean(entry));
+  return value
+    .map((entry) => readString(entry))
+    .filter((entry): entry is string => Boolean(entry));
 }
 
 function parseAttachment(entry: unknown): GroupMeAttachment | null {
@@ -152,7 +154,9 @@ function parseAttachments(value: unknown): GroupMeAttachment[] {
   return attachments;
 }
 
-export function parseGroupMeCallback(data: unknown): GroupMeCallbackData | null {
+export function parseGroupMeCallback(
+  data: unknown,
+): GroupMeCallbackData | null {
   if (!isRecord(data)) {
     return null;
   }
@@ -166,7 +170,15 @@ export function parseGroupMeCallback(data: unknown): GroupMeCallbackData | null 
   const sourceGuid = readString(data.source_guid);
   const createdAt = readNumber(data.created_at);
 
-  if (!id || !name || !senderType || !senderId || !userId || !groupId || !sourceGuid) {
+  if (
+    !id ||
+    !name ||
+    !senderType ||
+    !senderId ||
+    !userId ||
+    !groupId ||
+    !sourceGuid
+  ) {
     return null;
   }
   if (typeof createdAt !== "number") {
@@ -212,12 +224,17 @@ export function shouldProcessCallback(msg: GroupMeCallbackData): string | null {
 
 export function extractImageUrls(attachments: GroupMeAttachment[]): string[] {
   return attachments
-    .filter((attachment): attachment is GroupMeImageAttachment => attachment.type === "image")
+    .filter(
+      (attachment): attachment is GroupMeImageAttachment =>
+        attachment.type === "image",
+    )
     .map((attachment) => attachment.url);
 }
 
 function normalizeMentionText(text: string): string {
-  return text.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f]/g, "").toLowerCase();
+  return text
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f]/g, "")
+    .toLowerCase();
 }
 
 function buildRegexes(patterns?: string[]): RegExp[] {

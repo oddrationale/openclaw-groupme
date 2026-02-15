@@ -1,4 +1,7 @@
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
+import {
+  DEFAULT_ACCOUNT_ID,
+  normalizeAccountId,
+} from "openclaw/plugin-sdk/account-id";
 import type {
   CoreConfig,
   GroupMeAccountConfig,
@@ -49,15 +52,22 @@ function resolveAccountConfig(
     return accounts[accountId];
   }
 
-  const hit = Object.keys(accounts).find((key) => normalizeAccountId(key) === accountId);
+  const hit = Object.keys(accounts).find(
+    (key) => normalizeAccountId(key) === accountId,
+  );
   return hit ? accounts[hit] : undefined;
 }
 
-function mergeAccountConfig(cfg: CoreConfig, accountId: string): GroupMeAccountConfig {
+function mergeAccountConfig(
+  cfg: CoreConfig,
+  accountId: string,
+): GroupMeAccountConfig {
   const raw = (cfg.channels?.groupme ?? {}) as GroupMeConfig;
   const { accounts: _ignored, defaultAccount: _ignored2, ...base } = raw;
   const account =
-    accountId === DEFAULT_ACCOUNT_ID ? {} : (resolveAccountConfig(cfg, accountId) ?? {});
+    accountId === DEFAULT_ACCOUNT_ID
+      ? {}
+      : (resolveAccountConfig(cfg, accountId) ?? {});
 
   return {
     ...base,
@@ -94,7 +104,9 @@ export function resolveGroupMeAccount(params: {
 }): ResolvedGroupMeAccount {
   const normalizedRequested = normalizeAccountId(params.accountId);
   const accountId =
-    normalizedRequested || resolveDefaultGroupMeAccountId(params.cfg) || DEFAULT_ACCOUNT_ID;
+    normalizedRequested ||
+    resolveDefaultGroupMeAccountId(params.cfg) ||
+    DEFAULT_ACCOUNT_ID;
 
   const merged = mergeAccountConfig(params.cfg, accountId);
   const baseEnabled = params.cfg.channels?.groupme?.enabled !== false;
@@ -108,7 +120,9 @@ export function resolveGroupMeAccount(params: {
     "";
   const accessToken =
     readTrimmed(merged.accessToken) ||
-    (isDefaultAccount ? readTrimmed(process.env[ENV_ACCESS_TOKEN]) : undefined) ||
+    (isDefaultAccount
+      ? readTrimmed(process.env[ENV_ACCESS_TOKEN])
+      : undefined) ||
     "";
   const botName =
     readTrimmed(merged.botName) ||
@@ -116,7 +130,9 @@ export function resolveGroupMeAccount(params: {
     undefined;
   const callbackPath =
     readTrimmed(merged.callbackPath) ||
-    (isDefaultAccount ? readTrimmed(process.env[ENV_CALLBACK_PATH]) : undefined) ||
+    (isDefaultAccount
+      ? readTrimmed(process.env[ENV_CALLBACK_PATH])
+      : undefined) ||
     undefined;
 
   const config: GroupMeAccountConfig = {

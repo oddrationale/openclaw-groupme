@@ -113,15 +113,21 @@ describe("shouldProcessCallback", () => {
 
 describe("detectGroupMeMention", () => {
   it("detects exact bot name mention", () => {
-    expect(detectGroupMeMention({ text: "oddclaw help", botName: "oddclaw" })).toBe(true);
+    expect(
+      detectGroupMeMention({ text: "oddclaw help", botName: "oddclaw" }),
+    ).toBe(true);
   });
 
   it("detects @botname mention", () => {
-    expect(detectGroupMeMention({ text: "@oddclaw help", botName: "oddclaw" })).toBe(true);
+    expect(
+      detectGroupMeMention({ text: "@oddclaw help", botName: "oddclaw" }),
+    ).toBe(true);
   });
 
   it("is case-insensitive", () => {
-    expect(detectGroupMeMention({ text: "ODDCLAW", botName: "oddclaw" })).toBe(true);
+    expect(detectGroupMeMention({ text: "ODDCLAW", botName: "oddclaw" })).toBe(
+      true,
+    );
   });
 
   it("uses mentionPatterns regex", () => {
@@ -143,7 +149,9 @@ describe("detectGroupMeMention", () => {
   });
 
   it("returns false for unrelated messages", () => {
-    expect(detectGroupMeMention({ text: "random chat", botName: "oddclaw" })).toBe(false);
+    expect(
+      detectGroupMeMention({ text: "random chat", botName: "oddclaw" }),
+    ).toBe(false);
   });
 
   it("handles empty text", () => {

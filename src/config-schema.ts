@@ -1,4 +1,7 @@
-import { BlockStreamingCoalesceSchema, MarkdownConfigSchema } from "openclaw/plugin-sdk";
+import {
+  BlockStreamingCoalesceSchema,
+  MarkdownConfigSchema,
+} from "openclaw/plugin-sdk";
 import { z } from "zod";
 
 const allowFromEntry = z.union([z.string(), z.number()]);
@@ -13,6 +16,7 @@ export const GroupMeAccountSchemaBase = z
     callbackPath: z.string().optional(),
     mentionPatterns: z.array(z.string()).optional(),
     requireMention: z.boolean().optional().default(true),
+    historyLimit: z.number().int().nonnegative().optional(),
     allowFrom: z.array(allowFromEntry).optional(),
     markdown: MarkdownConfigSchema,
     textChunkLimit: z.number().int().positive().optional(),
@@ -24,6 +28,8 @@ export const GroupMeAccountSchemaBase = z
   .strict();
 
 export const GroupMeConfigSchema = GroupMeAccountSchemaBase.extend({
-  accounts: z.record(z.string(), GroupMeAccountSchemaBase.optional()).optional(),
+  accounts: z
+    .record(z.string(), GroupMeAccountSchemaBase.optional())
+    .optional(),
   defaultAccount: z.string().optional(),
 }).strict();

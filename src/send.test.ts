@@ -9,7 +9,10 @@ import {
 
 describe("sendGroupMeMessage", () => {
   it("sends text message", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 201, statusText: "Created" }));
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response("", { status: 201, statusText: "Created" }),
+    );
 
     await sendGroupMeMessage({
       botId: "bot-1",
@@ -18,14 +21,21 @@ describe("sendGroupMeMessage", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.groupme.com/v3/bots/post");
-    const body = JSON.parse(String(options.body));
+    const firstCall = fetchMock.mock.calls[0];
+    if (!firstCall) {
+      throw new Error("missing fetch call");
+    }
+    const [url, options] = firstCall;
+    expect(String(url)).toBe("https://api.groupme.com/v3/bots/post");
+    const body = JSON.parse(String(options?.body));
     expect(body).toEqual({ bot_id: "bot-1", text: "hello" });
   });
 
   it("sends message with picture_url", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 202, statusText: "Accepted" }));
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response("", { status: 202, statusText: "Accepted" }),
+    );
 
     await sendGroupMeMessage({
       botId: "bot-1",
@@ -34,14 +44,19 @@ describe("sendGroupMeMessage", () => {
       fetchFn: fetchMock as unknown as typeof fetch,
     });
 
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(String(options.body));
+    const firstCall = fetchMock.mock.calls[0];
+    if (!firstCall) {
+      throw new Error("missing fetch call");
+    }
+    const [, options] = firstCall;
+    const body = JSON.parse(String(options?.body));
     expect(body.picture_url).toBe("https://i.groupme.com/abc");
   });
 
   it("throws on API error", async () => {
     const fetchMock = vi.fn(
-      async () => new Response("bad", { status: 400, statusText: "Bad Request" }),
+      async () =>
+        new Response("bad", { status: 400, statusText: "Bad Request" }),
     );
 
     await expect(
@@ -58,9 +73,14 @@ describe("uploadGroupMeImage", () => {
   it("uploads and returns picture_url", async () => {
     const fetchMock = vi.fn(
       async () =>
-        new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/pic" } }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({
+            payload: { picture_url: "https://i.groupme.com/pic" },
+          }),
+          {
+            status: 200,
+          },
+        ),
     );
 
     const result = await uploadGroupMeImage({
@@ -131,9 +151,14 @@ describe("high-level send helpers", () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/new" } }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({
+            payload: { picture_url: "https://i.groupme.com/new" },
+          }),
+          {
+            status: 200,
+          },
+        ),
       )
       .mockResolvedValueOnce(new Response("", { status: 201 }));
 
@@ -147,7 +172,11 @@ describe("high-level send helpers", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://example.com/image.png");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://image.groupme.com/pictures");
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("https://api.groupme.com/v3/bots/post");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://image.groupme.com/pictures",
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      "https://api.groupme.com/v3/bots/post",
+    );
   });
 });

@@ -38,7 +38,7 @@ openclaw plugins install openclaw-groupme
 openclaw channels add --channel groupme
 ```
 
-   - Option B (manual config): add this under your OpenClaw config:
+- Option B (manual config): add this under your OpenClaw config:
 
 ```yaml
 channels:
@@ -151,17 +151,17 @@ channels:
 
 ## Config reference
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `botId` | string | — | **Required.** GroupMe Bot ID |
-| `accessToken` | string | — | GroupMe access token (needed for image uploads) |
-| `botName` | string | — | Bot display name (used for mention detection) |
-| `callbackPath` | string | `/groupme` | Webhook route path |
-| `requireMention` | boolean | `true` | Only respond when mentioned |
-| `historyLimit` | number | `20` | Max buffered messages per group (when `requireMention: true`) |
-| `mentionPatterns` | string[] | — | Custom regex patterns that count as a mention |
-| `allowFrom` | array | — | Sender ID allowlist (`"*"` to allow all) |
-| `textChunkLimit` | number | `1000` | Max outbound text chunk size |
+| Field             | Type     | Default    | Description                                                   |
+| ----------------- | -------- | ---------- | ------------------------------------------------------------- |
+| `botId`           | string   | —          | **Required.** GroupMe Bot ID                                  |
+| `accessToken`     | string   | —          | GroupMe access token (needed for image uploads)               |
+| `botName`         | string   | —          | Bot display name (used for mention detection)                 |
+| `callbackPath`    | string   | `/groupme` | Webhook route path                                            |
+| `requireMention`  | boolean  | `true`     | Only respond when mentioned                                   |
+| `historyLimit`    | number   | `20`       | Max buffered messages per group (when `requireMention: true`) |
+| `mentionPatterns` | string[] | —          | Custom regex patterns that count as a mention                 |
+| `allowFrom`       | array    | —          | Sender ID allowlist (`"*"` to allow all)                      |
+| `textChunkLimit`  | number   | `1000`     | Max outbound text chunk size                                  |
 
 ## Environment variables (default account fallback)
 

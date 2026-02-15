@@ -56,7 +56,9 @@ export async function sendGroupMeMessage(params: {
   });
 
   if (!response.ok) {
-    throw new Error(`GroupMe API error: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `GroupMe API error: ${response.status} ${response.statusText}`,
+    );
   }
 
   return {
@@ -120,7 +122,9 @@ async function downloadRemoteMedia(params: {
   const fetchFn = params.fetchFn ?? fetch;
   const response = await fetchFn(params.mediaUrl);
   if (!response.ok) {
-    throw new Error(`GroupMe media download failed: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `GroupMe media download failed: ${response.status} ${response.statusText}`,
+    );
   }
 
   const contentType = response.headers.get("content-type") || "image/jpeg";

@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { HistoryEntry } from "openclaw/plugin-sdk";
 import type { RuntimeEnv } from "openclaw/plugin-sdk";
-import { readJsonBodyWithLimit, requestBodyErrorToText } from "openclaw/plugin-sdk";
+import {
+  readJsonBodyWithLimit,
+  requestBodyErrorToText,
+} from "openclaw/plugin-sdk";
 import type { CoreConfig, ResolvedGroupMeAccount } from "./types.js";
+import { resolveGroupMeHistoryLimit } from "./history.js";
 import { handleGroupMeInbound } from "./inbound.js";
 import { parseGroupMeCallback, shouldProcessCallback } from "./parse.js";
 
@@ -9,12 +14,20 @@ export type GroupMeWebhookHandlerParams = {
   account: ResolvedGroupMeAccount;
   config: CoreConfig;
   runtime: RuntimeEnv;
-  statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
+  statusSink?: (patch: {
+    lastInboundAt?: number;
+    lastOutboundAt?: number;
+  }) => void;
 };
 
 export function createGroupMeWebhookHandler(
   params: GroupMeWebhookHandlerParams,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  const groupHistories = new Map<string, HistoryEntry[]>();
+  const historyLimit = resolveGroupMeHistoryLimit(
+    params.account.config.historyLimit,
+  );
+
   return async (req, res) => {
     if (req.method !== "POST") {
       res.statusCode = 405;
@@ -30,8 +43,16 @@ export function createGroupMeWebhookHandler(
     });
     if (!body.ok) {
       res.statusCode =
-        body.code === "PAYLOAD_TOO_LARGE" ? 413 : body.code === "REQUEST_BODY_TIMEOUT" ? 408 : 400;
-      res.end(body.code === "INVALID_JSON" ? body.error : requestBodyErrorToText(body.code));
+        body.code === "PAYLOAD_TOO_LARGE"
+          ? 413
+          : body.code === "REQUEST_BODY_TIMEOUT"
+            ? 408
+            : 400;
+      res.end(
+        body.code === "INVALID_JSON"
+          ? body.error
+          : requestBodyErrorToText(body.code),
+      );
       return;
     }
 
@@ -56,8 +77,12 @@ export function createGroupMeWebhookHandler(
       config: params.config,
       runtime: params.runtime,
       statusSink: params.statusSink,
+      groupHistories,
+      historyLimit,
     }).catch((err) => {
-      params.runtime.error?.(`groupme: inbound processing failed: ${String(err)}`);
+      params.runtime.error?.(
+        `groupme: inbound processing failed: ${String(err)}`,
+      );
     });
   };
 }
