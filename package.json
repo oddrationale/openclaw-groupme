@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/groupme",
+  "name": "openclaw-groupme",
   "version": "0.0.1",
   "description": "OpenClaw GroupMe channel plugin",
   "type": "module",
