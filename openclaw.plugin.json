@@ -1,0 +1,9 @@
+{
+  "id": "groupme",
+  "channels": ["groupme"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
