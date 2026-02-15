@@ -301,10 +301,22 @@ export async function handleGroupMeInbound(params: {
     envelope: envelopeOptions,
     body: bodyForAgent,
   });
+  const shouldUseHistoryBuffer = requireMention && historyLimit > 0;
+  const historyEntriesForContext = shouldUseHistoryBuffer
+    ? [...(groupHistories.get(message.groupId) ?? [])]
+    : [];
+  if (shouldUseHistoryBuffer) {
+    clearHistoryEntriesIfEnabled({
+      historyMap: groupHistories,
+      historyKey: message.groupId,
+      limit: historyLimit,
+    });
+  }
+
   const combinedBody =
-    requireMention && historyLimit > 0
+    shouldUseHistoryBuffer
       ? buildPendingHistoryContextFromMap({
-          historyMap: groupHistories,
+          historyMap: new Map([[message.groupId, historyEntriesForContext]]),
           historyKey: message.groupId,
           limit: historyLimit,
           currentMessage: body,
@@ -312,8 +324,8 @@ export async function handleGroupMeInbound(params: {
         })
       : body;
   const inboundHistory =
-    requireMention && historyLimit > 0
-      ? (groupHistories.get(message.groupId) ?? []).map((entry) => ({
+    shouldUseHistoryBuffer
+      ? historyEntriesForContext.map((entry) => ({
           sender: entry.sender,
           body: entry.body,
           timestamp: entry.timestamp,
@@ -388,12 +400,4 @@ export async function handleGroupMeInbound(params: {
           : undefined,
     },
   });
-
-  if (requireMention) {
-    clearHistoryEntriesIfEnabled({
-      historyMap: groupHistories,
-      historyKey: message.groupId,
-      limit: historyLimit,
-    });
-  }
 }

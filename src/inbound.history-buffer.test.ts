@@ -212,4 +212,52 @@ describe("handleGroupMeInbound history buffer", () => {
     ]);
     expect(groupHistories.get("group-1")).toEqual([]);
   });
+
+  it("preserves messages buffered while mention dispatch is in flight", async () => {
+    const groupHistories = new Map([
+      [
+        "group-1",
+        [
+          {
+            sender: "Bob",
+            body: "earlier context",
+            timestamp: 1_700_000_000_100,
+            messageId: "m0",
+          },
+        ],
+      ],
+    ]);
+    const runtime = buildRuntimeEnv();
+
+    core.fns.dispatchReplyWithBufferedBlockDispatcher.mockImplementationOnce(
+      async () => {
+        groupHistories.set("group-1", [
+          {
+            sender: "Eve",
+            body: "newly buffered while reply is running",
+            timestamp: 1_700_000_000_200,
+            messageId: "m1",
+          },
+        ]);
+      },
+    );
+
+    await handleGroupMeInbound({
+      message: buildMessage({ text: "@oddclaw please answer" }),
+      account: buildAccount(),
+      config: {} as CoreConfig,
+      runtime,
+      groupHistories,
+      historyLimit: 3,
+    });
+
+    expect(groupHistories.get("group-1")).toEqual([
+      {
+        sender: "Eve",
+        body: "newly buffered while reply is running",
+        timestamp: 1_700_000_000_200,
+        messageId: "m1",
+      },
+    ]);
+  });
 });
