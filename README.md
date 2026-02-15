@@ -38,21 +38,18 @@ openclaw plugins install openclaw-groupme
 openclaw channels add --channel groupme
 ```
 
-   - Option B (manual config): add this under your OpenClaw config:
+- Option B (manual config): add this under your OpenClaw config:
 
-```json5
-{
-  channels: {
-    groupme: {
-      enabled: true,
-      botId: "YOUR_GROUPME_BOT_ID",
-      accessToken: "YOUR_GROUPME_ACCESS_TOKEN",
-      botName: "openclaw",
-      callbackPath: "/groupme",
-      requireMention: true
-    }
-  }
-}
+```yaml
+channels:
+  groupme:
+    enabled: true
+    botId: "YOUR_GROUPME_BOT_ID"
+    accessToken: "YOUR_GROUPME_ACCESS_TOKEN"
+    botName: "oddclaw"
+    callbackPath: "/groupme"
+    requireMention: true
+    historyLimit: 20
 ```
 
 4. Point GroupMe to your webhook:
@@ -72,20 +69,99 @@ openclaw gateway restart
 openclaw channels status --probe
 ```
 
-7. Send a test message in the GroupMe group:
-   - With default settings, the bot only responds when mentioned (`requireMention: true`)
-   - Mention either `@<botName>` or a configured mention pattern
+7. Send a test message in the GroupMe group to confirm it works.
 
-## Config reference (common fields)
+## Response modes
 
-- `botId` (string, required): GroupMe Bot ID
-- `accessToken` (string): needed for image upload / media replies
-- `botName` (string): mention fallback name used by mention detection
-- `callbackPath` (string, default `/groupme`): webhook route path
-- `requireMention` (boolean, default `true`): require mention before responding
-- `mentionPatterns` (string[]): custom regex patterns that count as a mention
-- `allowFrom` (array of string/number): sender allowlist (`"*"` to allow all)
-- `textChunkLimit` (number): max outbound text chunk size (capped at 1000)
+The bot has two modes controlled by `requireMention`:
+
+### Always respond (`requireMention: false`)
+
+The bot replies to every message in the group. Best for small groups or 1:1 chats with the bot.
+
+```yaml
+channels:
+  groupme:
+    requireMention: false
+```
+
+### Mention only (`requireMention: true`, default)
+
+The bot only replies when mentioned by name. But it passively reads all messages in the background — so when you do mention it, it knows what's been discussed.
+
+Control how much conversation history the bot remembers with `historyLimit` (default: 20 messages). When you mention the bot, it sees the last `historyLimit` messages as context for its response.
+
+```yaml
+channels:
+  groupme:
+    requireMention: true
+    historyLimit: 30
+```
+
+Set `historyLimit: 0` to disable history buffering entirely (the bot will only see the message that mentioned it).
+
+## How mentioning works
+
+GroupMe doesn't have native @mention support for bots. Instead, the plugin uses text-based pattern matching on the message body.
+
+By default, the bot responds when its name appears in the message (via `botName`). You can also configure custom patterns:
+
+```yaml
+channels:
+  groupme:
+    botName: "oddclaw"
+    mentionPatterns:
+      - "@oddclaw"
+      - "oddclaw"
+      - "hey oddclaw"
+```
+
+Patterns are case-insensitive regex. If `mentionPatterns` is not set, the plugin falls back to the agent's identity name and any global `mentionPatterns` from your agent config.
+
+## Configuration examples
+
+```yaml
+# Small group / 1:1 — respond to everything
+channels:
+  groupme:
+    botId: "abc123"
+    accessToken: "token123"
+    botName: "oddclaw"
+    requireMention: false
+
+# Large group — mention only, with conversation context
+channels:
+  groupme:
+    botId: "abc123"
+    accessToken: "token123"
+    botName: "oddclaw"
+    requireMention: true
+    historyLimit: 30
+    mentionPatterns: ["@oddclaw", "oddclaw"]
+
+# Large group — mention only, no history buffer
+channels:
+  groupme:
+    botId: "abc123"
+    accessToken: "token123"
+    botName: "oddclaw"
+    requireMention: true
+    historyLimit: 0
+```
+
+## Config reference
+
+| Field             | Type     | Default    | Description                                                   |
+| ----------------- | -------- | ---------- | ------------------------------------------------------------- |
+| `botId`           | string   | —          | **Required.** GroupMe Bot ID                                  |
+| `accessToken`     | string   | —          | GroupMe access token (needed for image uploads)               |
+| `botName`         | string   | —          | Bot display name (used for mention detection)                 |
+| `callbackPath`    | string   | `/groupme` | Webhook route path                                            |
+| `requireMention`  | boolean  | `true`     | Only respond when mentioned                                   |
+| `historyLimit`    | number   | `20`       | Max buffered messages per group (when `requireMention: true`) |
+| `mentionPatterns` | string[] | —          | Custom regex patterns that count as a mention                 |
+| `allowFrom`       | array    | —          | Sender ID allowlist (`"*"` to allow all)                      |
+| `textChunkLimit`  | number   | `1000`     | Max outbound text chunk size                                  |
 
 ## Environment variables (default account fallback)
 
@@ -107,14 +183,17 @@ If both config and env are set, config values take precedence.
 
 ## Troubleshooting
 
-- Bot does not respond:
+- **Bot does not respond:**
   - Confirm webhook URL is public + HTTPS and matches `callbackPath`
   - Confirm `botId` is correct
-  - If `requireMention: true`, mention the bot in the message
+  - If `requireMention: true`, mention the bot by name in the message
   - Check `allowFrom` (if set)
-- Image replies fail:
+- **Bot responds but has no context:**
+  - Make sure `historyLimit` is not set to `0`
+  - History is only buffered for `requireMention: true` mode
+- **Image replies fail:**
   - Ensure `accessToken` is configured
-- Check runtime logs:
+- **Check runtime logs:**
 
 ```bash
 openclaw channels logs --channel groupme

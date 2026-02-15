@@ -90,7 +90,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const accessToken = (
       await prompter.text({
         message: "Access token",
-        validate: (value) => (value.trim() ? undefined : "Access token is required"),
+        validate: (value) =>
+          value.trim() ? undefined : "Access token is required",
       })
     ).trim();
 
@@ -105,7 +106,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       await prompter.text({
         message: "Webhook path",
         initialValue: "/groupme",
-        validate: (value) => (value.trim().startsWith("/") ? undefined : "Path must start with /"),
+        validate: (value) =>
+          value.trim().startsWith("/") ? undefined : "Path must start with /",
       })
     ).trim();
 

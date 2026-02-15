@@ -7,7 +7,11 @@ import {
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
-import type { CoreConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
+import type {
+  CoreConfig,
+  GroupMeProbe,
+  ResolvedGroupMeAccount,
+} from "./types.js";
 import {
   listGroupMeAccountIds,
   resolveDefaultGroupMeAccountId,
@@ -22,7 +26,11 @@ import {
 } from "./normalize.js";
 import { groupmeOnboardingAdapter } from "./onboarding.js";
 import { getGroupMeRuntime } from "./runtime.js";
-import { GROUPME_MAX_TEXT_LENGTH, sendGroupMeMedia, sendGroupMeText } from "./send.js";
+import {
+  GROUPME_MAX_TEXT_LENGTH,
+  sendGroupMeMedia,
+  sendGroupMeText,
+} from "./send.js";
 
 const CHANNEL_ID = "groupme" as const;
 
@@ -38,7 +46,10 @@ const meta = {
   quickstartAllowFrom: true,
 };
 
-export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> = {
+export const groupmePlugin: ChannelPlugin<
+  ResolvedGroupMeAccount,
+  GroupMeProbe
+> = {
   id: CHANNEL_ID,
   meta,
   onboarding: groupmeOnboardingAdapter,
@@ -53,7 +64,8 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
     listAccountIds: (cfg) => listGroupMeAccountIds(cfg as CoreConfig),
     resolveAccount: (cfg, accountId) =>
       resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
-    defaultAccountId: (cfg) => resolveDefaultGroupMeAccountId(cfg as CoreConfig),
+    defaultAccountId: (cfg) =>
+      resolveDefaultGroupMeAccountId(cfg as CoreConfig),
     setAccountEnabled: ({ cfg, accountId, enabled }) =>
       setAccountEnabledInConfigSection({
         cfg: cfg as CoreConfig,
@@ -75,6 +87,7 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
           "callbackPath",
           "mentionPatterns",
           "requireMention",
+          "historyLimit",
           "allowFrom",
           "textChunkLimit",
           "responsePrefix",
@@ -90,9 +103,10 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       callbackPath: account.config.callbackPath,
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
-      (resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config.allowFrom ?? []).map(
-        (entry) => String(entry),
-      ),
+      (
+        resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config
+          .allowFrom ?? []
+      ).map((entry) => String(entry)),
     formatAllowFrom: ({ allowFrom }) =>
       allowFrom
         .map((entry) => normalizeGroupMeAllowEntry(String(entry)))
@@ -109,7 +123,8 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
   },
   outbound: {
     deliveryMode: "direct",
-    chunker: (text, limit) => getGroupMeRuntime().channel.text.chunkMarkdownText(text, limit),
+    chunker: (text, limit) =>
+      getGroupMeRuntime().channel.text.chunkMarkdownText(text, limit),
     chunkerMode: "markdown",
     textChunkLimit: GROUPME_MAX_TEXT_LENGTH,
     resolveTarget: ({ to }) => {
@@ -256,7 +271,8 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
           account,
           config: ctx.cfg as CoreConfig,
           runtime: ctx.runtime,
-          statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
+          statusSink: (patch) =>
+            ctx.setStatus({ accountId: account.accountId, ...patch }),
         }),
         pluginId: CHANNEL_ID,
         accountId: account.accountId,
@@ -272,7 +288,9 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
         lastError: null,
       });
 
-      ctx.log?.info(`[${account.accountId}] GroupMe webhook listening on ${callbackPath}`);
+      ctx.log?.info(
+        `[${account.accountId}] GroupMe webhook listening on ${callbackPath}`,
+      );
 
       if (ctx.abortSignal.aborted) {
         unregister();

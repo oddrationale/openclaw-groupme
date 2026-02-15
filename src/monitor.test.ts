@@ -1,10 +1,13 @@
 import type { AddressInfo } from "node:net";
 import type { RuntimeEnv } from "openclaw/plugin-sdk";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { CoreConfig, ResolvedGroupMeAccount } from "./types.js";
 
-const handleGroupMeInboundMock = vi.hoisted(() => vi.fn(async () => undefined));
+const handleGroupMeInboundMock = vi.hoisted(() =>
+  vi.fn(async (_params: unknown) => undefined),
+);
 
 vi.mock("./inbound.js", () => ({
   handleGroupMeInbound: handleGroupMeInboundMock,
@@ -13,10 +16,12 @@ vi.mock("./inbound.js", () => ({
 import { createGroupMeWebhookHandler } from "./monitor.js";
 
 async function withServer(
-  handler: Parameters<typeof createServer>[0],
+  handler: (req: IncomingMessage, res: ServerResponse) => Promise<void>,
   fn: (baseUrl: string) => Promise<void>,
 ) {
-  const server = createServer(handler);
+  const server = createServer((req, res) => {
+    void handler(req, res);
+  });
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => {
       server.off("listening", onListening);
@@ -92,14 +97,11 @@ describe("createGroupMeWebhookHandler", () => {
     const handler = createGroupMeWebhookHandler({ account, config, runtime });
 
     await runIfServerAllowed(async () => {
-      await withServer(
-        async (req, res) => handler(req, res),
-        async (baseUrl) => {
-          const response = await fetch(`${baseUrl}/groupme`, { method: "GET" });
-          expect(response.status).toBe(405);
-          expect(await response.text()).toBe("Method Not Allowed");
-        },
-      );
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/groupme`, { method: "GET" });
+        expect(response.status).toBe(405);
+        expect(await response.text()).toBe("Method Not Allowed");
+      });
     });
   });
 
@@ -108,17 +110,14 @@ describe("createGroupMeWebhookHandler", () => {
     const handler = createGroupMeWebhookHandler({ account, config, runtime });
 
     await runIfServerAllowed(async () => {
-      await withServer(
-        async (req, res) => handler(req, res),
-        async (baseUrl) => {
-          const response = await fetch(`${baseUrl}/groupme`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: "{",
-          });
-          expect(response.status).toBe(400);
-        },
-      );
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/groupme`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{",
+        });
+        expect(response.status).toBe(400);
+      });
     });
   });
 
@@ -142,22 +141,71 @@ describe("createGroupMeWebhookHandler", () => {
     };
 
     await runIfServerAllowed(async () => {
-      await withServer(
-        async (req, res) => handler(req, res),
-        async (baseUrl) => {
-          const response = await fetch(`${baseUrl}/groupme`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          expect(response.status).toBe(200);
-          expect(await response.text()).toBe("ok");
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/groupme`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("ok");
 
-          // Wait for fire-and-forget processing.
-          await new Promise((resolve) => setTimeout(resolve, 0));
-          expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
-        },
-      );
+        // Wait for fire-and-forget processing.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
+        const call = handleGroupMeInboundMock.mock.calls[0]?.[0] as
+          | { historyLimit?: unknown; groupHistories?: unknown }
+          | undefined;
+        expect(call?.historyLimit).toBe(20);
+        expect(call?.groupHistories).toBeInstanceOf(Map);
+      });
+    });
+  });
+
+  it("passes configured historyLimit to inbound handler", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const accountWithHistory: ResolvedGroupMeAccount = {
+      ...account,
+      config: {
+        ...account.config,
+        historyLimit: 7,
+      },
+    };
+    const handler = createGroupMeWebhookHandler({
+      account: accountWithHistory,
+      config,
+      runtime,
+    });
+
+    const payload = {
+      id: "msg-2",
+      text: "hello",
+      name: "Alice",
+      sender_type: "user",
+      sender_id: "123",
+      user_id: "123",
+      group_id: "456",
+      source_guid: "source",
+      created_at: 1_700_000_000,
+      system: false,
+      attachments: [],
+    };
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/groupme`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        expect(response.status).toBe(200);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const call = handleGroupMeInboundMock.mock.calls[0]?.[0] as
+          | { historyLimit?: unknown }
+          | undefined;
+        expect(call?.historyLimit).toBe(7);
+      });
     });
   });
 
@@ -167,20 +215,19 @@ describe("createGroupMeWebhookHandler", () => {
     const handler = createGroupMeWebhookHandler({ account, config, runtime });
 
     await runIfServerAllowed(async () => {
-      await withServer(
-        async (req, res) => handler(req, res),
-        async (baseUrl) => {
-          const response = await fetch(`${baseUrl}/groupme`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ nope: true }),
-          });
-          expect(response.status).toBe(200);
-          await new Promise((resolve) => setTimeout(resolve, 0));
-          expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
-          expect(runtime.log).toHaveBeenCalledWith("groupme: unparseable callback payload");
-        },
-      );
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/groupme`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ nope: true }),
+        });
+        expect(response.status).toBe(200);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
+        expect(runtime.log).toHaveBeenCalledWith(
+          "groupme: unparseable callback payload",
+        );
+      });
     });
   });
 });

@@ -1,15 +1,36 @@
-import type { OpenClawConfig, ReplyPayload, RuntimeEnv } from "openclaw/plugin-sdk";
+import type {
+  OpenClawConfig,
+  ReplyPayload,
+  RuntimeEnv,
+} from "openclaw/plugin-sdk";
 import {
+  buildPendingHistoryContextFromMap,
+  clearHistoryEntriesIfEnabled,
   createReplyPrefixOptions,
   logInboundDrop,
+  recordPendingHistoryEntryIfEnabled,
   resolveControlCommandGate,
   resolveMentionGatingWithBypass,
+  type HistoryEntry,
 } from "openclaw/plugin-sdk";
-import type { GroupMeCallbackData, ResolvedGroupMeAccount, CoreConfig } from "./types.js";
+import type {
+  GroupMeCallbackData,
+  ResolvedGroupMeAccount,
+  CoreConfig,
+} from "./types.js";
+import {
+  buildGroupMeHistoryEntry,
+  formatGroupMeHistoryEntry,
+  resolveGroupMeBodyForAgent,
+} from "./history.js";
 import { extractImageUrls, detectGroupMeMention } from "./parse.js";
 import { resolveSenderAccess } from "./policy.js";
 import { getGroupMeRuntime } from "./runtime.js";
-import { GROUPME_MAX_TEXT_LENGTH, sendGroupMeMedia, sendGroupMeText } from "./send.js";
+import {
+  GROUPME_MAX_TEXT_LENGTH,
+  sendGroupMeMedia,
+  sendGroupMeText,
+} from "./send.js";
 
 const CHANNEL_ID = "groupme" as const;
 
@@ -35,7 +56,9 @@ function chunkReplyText(params: {
     return [];
   }
 
-  return params.core.channel.text.chunkMarkdownText(trimmed, params.limit).filter(Boolean);
+  return params.core.channel.text
+    .chunkMarkdownText(trimmed, params.limit)
+    .filter(Boolean);
 }
 
 async function deliverGroupMeReply(params: {
@@ -130,9 +153,22 @@ export async function handleGroupMeInbound(params: {
   account: ResolvedGroupMeAccount;
   config: CoreConfig;
   runtime: RuntimeEnv;
-  statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
+  groupHistories: Map<string, HistoryEntry[]>;
+  historyLimit: number;
+  statusSink?: (patch: {
+    lastInboundAt?: number;
+    lastOutboundAt?: number;
+  }) => void;
 }): Promise<void> {
-  const { message, account, config, runtime, statusSink } = params;
+  const {
+    message,
+    account,
+    config,
+    runtime,
+    groupHistories,
+    historyLimit,
+    statusSink,
+  } = params;
   const core = getGroupMeRuntime();
 
   const inboundTimestamp = message.createdAt * 1000;
@@ -150,7 +186,9 @@ export async function handleGroupMeInbound(params: {
     allowFrom,
   });
   if (!senderAllowed) {
-    runtime.log?.(`groupme: drop sender ${message.senderId} (not in allowFrom)`);
+    runtime.log?.(
+      `groupme: drop sender ${message.senderId} (not in allowFrom)`,
+    );
     return;
   }
 
@@ -168,6 +206,7 @@ export async function handleGroupMeInbound(params: {
     config as OpenClawConfig,
     route.agentId,
   );
+  const requireMention = account.config.requireMention ?? true;
   const wasMentioned = detectGroupMeMention({
     text: message.text,
     botName: account.config.botName,
@@ -202,7 +241,7 @@ export async function handleGroupMeInbound(params: {
 
   const mentionGate = resolveMentionGatingWithBypass({
     isGroup: true,
-    requireMention: account.config.requireMention ?? true,
+    requireMention,
     canDetectMention: true,
     wasMentioned,
     hasAnyMention: false,
@@ -211,25 +250,48 @@ export async function handleGroupMeInbound(params: {
     commandAuthorized: commandGate.commandAuthorized,
   });
 
+  const imageUrls = extractImageUrls(message.attachments);
+  const rawBody = message.text;
+  const bodyForAgent = resolveGroupMeBodyForAgent({
+    rawBody,
+    imageUrls,
+  });
+
   if (mentionGate.shouldSkip) {
-    runtime.log?.("groupme: skip message (mention required, not mentioned)");
+    const buffered = recordPendingHistoryEntryIfEnabled({
+      historyMap: groupHistories,
+      historyKey: message.groupId,
+      limit: historyLimit,
+      entry: buildGroupMeHistoryEntry({
+        senderName: message.name,
+        body: bodyForAgent,
+        timestamp: inboundTimestamp,
+        messageId: message.id,
+      }),
+    });
+    if (buffered.length > 0) {
+      runtime.log?.(
+        `groupme: buffered message from ${message.name} (${buffered.length}/${historyLimit})`,
+      );
+    } else {
+      runtime.log?.("groupme: skip message (mention required, not mentioned)");
+    }
     return;
   }
 
-  const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(config as OpenClawConfig);
-  const storePath = core.channel.session.resolveStorePath(config.session?.store, {
-    agentId: route.agentId,
-  });
+  const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(
+    config as OpenClawConfig,
+  );
+  const storePath = core.channel.session.resolveStorePath(
+    config.session?.store,
+    {
+      agentId: route.agentId,
+    },
+  );
   const previousTimestamp = core.channel.session.readSessionUpdatedAt({
     storePath,
     sessionKey: route.sessionKey,
   });
-
-  const imageUrls = extractImageUrls(message.attachments);
-  const rawBody = message.text;
-  const bodyForAgent =
-    rawBody.trim() ||
-    (imageUrls.length > 0 ? imageUrls.map((url) => `Image: ${url}`).join("\n") : rawBody);
 
   const body = core.channel.reply.formatAgentEnvelope({
     channel: "GroupMe",
@@ -239,10 +301,41 @@ export async function handleGroupMeInbound(params: {
     envelope: envelopeOptions,
     body: bodyForAgent,
   });
+  const shouldUseHistoryBuffer = requireMention && historyLimit > 0;
+  const historyEntriesForContext = shouldUseHistoryBuffer
+    ? [...(groupHistories.get(message.groupId) ?? [])]
+    : [];
+  if (shouldUseHistoryBuffer) {
+    clearHistoryEntriesIfEnabled({
+      historyMap: groupHistories,
+      historyKey: message.groupId,
+      limit: historyLimit,
+    });
+  }
+
+  const combinedBody =
+    shouldUseHistoryBuffer
+      ? buildPendingHistoryContextFromMap({
+          historyMap: new Map([[message.groupId, historyEntriesForContext]]),
+          historyKey: message.groupId,
+          limit: historyLimit,
+          currentMessage: body,
+          formatEntry: formatGroupMeHistoryEntry,
+        })
+      : body;
+  const inboundHistory =
+    shouldUseHistoryBuffer
+      ? historyEntriesForContext.map((entry) => ({
+          sender: entry.sender,
+          body: entry.body,
+          timestamp: entry.timestamp,
+        }))
+      : undefined;
 
   const ctxPayload = core.channel.reply.finalizeInboundContext({
-    Body: body,
+    Body: combinedBody,
     BodyForAgent: bodyForAgent,
+    InboundHistory: inboundHistory,
     RawBody: rawBody,
     CommandBody: rawBody,
     From: `groupme:user:${message.senderId}`,

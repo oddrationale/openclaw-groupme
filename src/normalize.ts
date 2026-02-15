@@ -3,11 +3,15 @@ function normalizeStringId(raw: string | number): string | undefined {
   return normalized || undefined;
 }
 
-export function normalizeGroupMeUserId(raw: string | number): string | undefined {
+export function normalizeGroupMeUserId(
+  raw: string | number,
+): string | undefined {
   return normalizeStringId(raw);
 }
 
-export function normalizeGroupMeGroupId(raw: string | number): string | undefined {
+export function normalizeGroupMeGroupId(
+  raw: string | number,
+): string | undefined {
   return normalizeStringId(raw);
 }
 

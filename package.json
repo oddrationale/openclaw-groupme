@@ -14,8 +14,17 @@
   "dependencies": {
     "zod": "^4.3.6"
   },
+  "devDependencies": {
+    "openclaw": ">=2026.2.14",
+    "vitest": "^4.0.18"
+  },
   "peerDependencies": {
-    "openclaw": ">=2026.2.0"
+    "openclaw": ">=2026.2.14"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   },
   "openclaw": {
     "extensions": [
@@ -25,16 +34,10 @@
       "id": "groupme",
       "label": "GroupMe",
       "selectionLabel": "GroupMe (Bot API)",
-      "docsPath": "/channels/groupme",
-      "docsLabel": "groupme",
-      "blurb": "GroupMe bot webhook integration (group chats only).",
-      "order": 95,
-      "quickstartAllowFrom": true
+      "blurb": "GroupMe bot webhook integration (group chats only)."
     },
     "install": {
-      "npmSpec": "openclaw-groupme",
-      "localPath": "extensions/groupme",
-      "defaultChoice": "npm"
+      "npmSpec": "openclaw-groupme"
     }
   }
 }

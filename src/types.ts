@@ -15,6 +15,7 @@ export type GroupMeAccountConfig = {
   callbackPath?: string;
   mentionPatterns?: string[];
   requireMention?: boolean;
+  historyLimit?: number;
   allowFrom?: GroupMeAllowFromEntry[];
   markdown?: MarkdownConfig;
   textChunkLimit?: number;
