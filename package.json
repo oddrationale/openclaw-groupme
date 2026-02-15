@@ -1,6 +1,6 @@
 {
   "name": "openclaw-groupme",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "OpenClaw GroupMe channel plugin",
   "repository": {
     "type": "git",

@@ -1,5 +1,5 @@
 {
-  "id": "groupme",
+  "id": "openclaw-groupme",
   "channels": ["groupme"],
   "configSchema": {
     "type": "object",
