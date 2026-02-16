@@ -84,7 +84,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       channel: "groupme",
       configured,
       statusLines: [
-        `GroupMe (${accountId}): ${configured ? "configured" : "needs botId"}`,
+        `GroupMe (${accountId}): ${configured ? "configured" : "needs access token"}`,
         account.config.accessToken?.trim()
           ? "Access token configured"
           : "Access token missing",
@@ -93,7 +93,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
           : "Webhook callback URL missing",
         groupIdConfigured ? "Group ID configured" : "Group ID missing",
       ],
-      selectionHint: configured ? "configured" : "needs bot ID",
+      selectionHint: configured ? "configured" : "needs access token",
       quickstartScore: configured ? 1 : 0,
     };
   },
@@ -148,6 +148,10 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       })),
     });
     const selectedGroup = groups.find((group) => group.id === groupId);
+    const requireMention = await prompter.confirm({
+      message: "Require mention to respond?",
+      initialValue: true,
+    });
 
     const pathSegment = randomBytes(8).toString("hex");
     const callbackToken = randomBytes(32).toString("hex");
@@ -187,11 +191,6 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       `Bot "${botName}" registered in group "${selectedGroup?.name ?? groupId}" (bot ID: ${redactMiddle(botId)})`,
       "GroupMe bot registered",
     );
-
-    const requireMention = await prompter.confirm({
-      message: "Require mention to respond?",
-      initialValue: true,
-    });
 
     const next = applyGroupMeConfig({
       cfg,

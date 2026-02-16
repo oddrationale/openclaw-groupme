@@ -123,7 +123,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
         name: "oddclaw",
         groupId: "g2",
         callbackUrl: expect.stringMatching(
-          /^https:\/\/example\.com\/groupme\/[0-9a-f]{16}$/,
+          /^https:\/\/example\.invalid\/groupme\/[0-9a-f]{16}$/,
         ),
       }),
     );
