@@ -88,11 +88,7 @@ function parseAttachment(entry: unknown): GroupMeAttachment | null {
     if (!url) {
       return null;
     }
-    const imageAttachment: GroupMeImageAttachment = {
-      type,
-      url,
-    };
-    return imageAttachment;
+    return { type, url } satisfies GroupMeImageAttachment;
   }
 
   if (type === "location") {
@@ -102,22 +98,15 @@ function parseAttachment(entry: unknown): GroupMeAttachment | null {
     if (!lat || !lng || !name) {
       return null;
     }
-    const locationAttachment: GroupMeLocationAttachment = {
-      type,
-      lat,
-      lng,
-      name,
-    };
-    return locationAttachment;
+    return { type, lat, lng, name } satisfies GroupMeLocationAttachment;
   }
 
   if (type === "mentions") {
-    const mentionsAttachment: GroupMeMentionsAttachment = {
+    return {
       type,
       user_ids: parseStringArray(entry.user_ids),
       loci: parseNumberMatrix(entry.loci),
-    };
-    return mentionsAttachment;
+    } satisfies GroupMeMentionsAttachment;
   }
 
   if (type === "emoji") {
@@ -125,12 +114,11 @@ function parseAttachment(entry: unknown): GroupMeAttachment | null {
     if (!placeholder) {
       return null;
     }
-    const emojiAttachment: GroupMeEmojiAttachment = {
+    return {
       type,
       placeholder,
       charmap: parseNumberMatrix(entry.charmap),
-    };
-    return emojiAttachment;
+    } satisfies GroupMeEmojiAttachment;
   }
 
   return {

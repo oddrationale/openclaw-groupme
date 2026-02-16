@@ -5,22 +5,15 @@ const GROUPME_API_BASE = "https://api.groupme.com/v3";
 async function readApiError(response: Response): Promise<string> {
   const fallback = `GroupMe API error: ${response.status} ${response.statusText}`;
   try {
-    const payload = await response.json();
-    if (
-      payload &&
-      typeof payload === "object" &&
-      (payload as { meta?: unknown }).meta &&
-      typeof (payload as { meta: { errors?: unknown } }).meta === "object"
-    ) {
-      const errors = (payload as { meta: { errors?: unknown } }).meta.errors;
-      if (Array.isArray(errors) && errors.length > 0) {
-        const text = errors
-          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-          .filter(Boolean)
-          .join("; ");
-        if (text) {
-          return `${fallback} (${text})`;
-        }
+    const payload = (await response.json()) as { meta?: { errors?: unknown } };
+    const errors = payload?.meta?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      const text = errors
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter(Boolean)
+        .join("; ");
+      if (text) {
+        return `${fallback} (${text})`;
       }
     }
   } catch {
@@ -30,27 +23,19 @@ async function readApiError(response: Response): Promise<string> {
 }
 
 function readGroupsResponse(payload: unknown): GroupMeApiGroup[] {
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    !Array.isArray((payload as { response?: unknown }).response)
-  ) {
+  const response = (payload as { response?: unknown })?.response;
+  if (!Array.isArray(response)) {
     throw new Error("GroupMe groups fetch returned an invalid payload");
   }
-  return (payload as { response: GroupMeApiGroup[] }).response;
+  return response as GroupMeApiGroup[];
 }
 
 function readBotResponse(payload: unknown): GroupMeApiBot {
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    !(payload as { response?: unknown }).response ||
-    typeof (payload as { response: { bot?: unknown } }).response !== "object" ||
-    !(payload as { response: { bot?: unknown } }).response.bot
-  ) {
+  const bot = (payload as { response?: { bot?: unknown } })?.response?.bot;
+  if (!bot) {
     throw new Error("GroupMe bot creation returned an invalid payload");
   }
-  return (payload as { response: { bot: GroupMeApiBot } }).response.bot;
+  return bot as GroupMeApiBot;
 }
 
 export async function fetchGroups(accessToken: string): Promise<GroupMeApiGroup[]> {

@@ -1,13 +1,13 @@
 import {
   normalizeGroupMeAllowEntry,
-  normalizeGroupMeUserId,
+  normalizeStringId,
 } from "./normalize.js";
 
 export function resolveSenderAccess(params: {
   senderId: string;
   allowFrom?: Array<string | number>;
 }): boolean {
-  const senderId = normalizeGroupMeUserId(params.senderId);
+  const senderId = normalizeStringId(params.senderId);
   if (!senderId) {
     return false;
   }

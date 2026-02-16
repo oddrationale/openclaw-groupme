@@ -28,27 +28,6 @@ type RuntimeFetchRemoteMedia = (params: {
   contentType?: string;
 }>;
 
-type GroupMeBotPostPayload = {
-  bot_id: string;
-  text: string;
-  picture_url?: string;
-};
-
-function buildGroupMeBotPostPayload(params: {
-  botId: string;
-  text: string;
-  pictureUrl?: string;
-}): GroupMeBotPostPayload {
-  const payload: GroupMeBotPostPayload = {
-    bot_id: params.botId,
-    text: params.text,
-  };
-  if (params.pictureUrl) {
-    payload.picture_url = params.pictureUrl;
-  }
-  return payload;
-}
-
 export async function sendGroupMeMessage(params: {
   botId: string;
   text: string;
@@ -56,18 +35,19 @@ export async function sendGroupMeMessage(params: {
   fetchFn?: FetchLike;
 }): Promise<SendGroupMeResult> {
   const fetchFn = params.fetchFn ?? fetch;
+  const payload: { bot_id: string; text: string; picture_url?: string } = {
+    bot_id: params.botId,
+    text: params.text,
+  };
+  if (params.pictureUrl) {
+    payload.picture_url = params.pictureUrl;
+  }
   const response = await fetchFn(`${GROUPME_API_BASE}/bots/post`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(
-      buildGroupMeBotPostPayload({
-        botId: params.botId,
-        text: params.text,
-        pictureUrl: params.pictureUrl,
-      }),
-    ),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -83,22 +63,10 @@ export async function sendGroupMeMessage(params: {
 }
 
 function extractPictureUrl(value: unknown): string | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const payload = (value as { payload?: unknown }).payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return null;
-  }
-
-  const pictureUrl = (payload as { picture_url?: unknown }).picture_url;
-  if (typeof pictureUrl !== "string") {
-    return null;
-  }
-
-  const trimmed = pictureUrl.trim();
-  return trimmed || null;
+  const url = (value as { payload?: { picture_url?: unknown } })?.payload
+    ?.picture_url;
+  if (typeof url !== "string") return null;
+  return url.trim() || null;
 }
 
 export async function uploadGroupMeImage(params: {
