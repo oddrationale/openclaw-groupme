@@ -1,14 +1,19 @@
 import {
+  applyAccountNameToChannelSection,
   buildChannelConfigSchema,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
+  migrateBaseNameToDefaultAccount,
   missingTargetError,
+  normalizeAccountId,
   registerPluginHttpRoute,
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
+  type ChannelSetupAdapter,
 } from "openclaw/plugin-sdk";
 import type {
   CoreConfig,
+  GroupMeConfig,
   GroupMeProbe,
   ResolvedGroupMeAccount,
 } from "./types.js";
@@ -82,6 +87,80 @@ export const groupmePlugin: ChannelPlugin<
   id: CHANNEL_ID,
   meta,
   onboarding: groupmeOnboardingAdapter,
+  setup: {
+    resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
+
+    applyAccountName: ({ cfg, accountId, name }) =>
+      applyAccountNameToChannelSection({
+        cfg,
+        channelKey: "groupme",
+        accountId,
+        name,
+      }),
+
+    validateInput: ({ input }) => {
+      if (!input.token?.trim()) {
+        return "GroupMe Bot ID is required (--token <bot-id>)";
+      }
+      return null;
+    },
+
+    applyAccountConfig: ({ cfg, accountId, input }) => {
+      let next = applyAccountNameToChannelSection({
+        cfg,
+        channelKey: "groupme",
+        accountId,
+        name: input.name,
+      });
+
+      if (accountId !== DEFAULT_ACCOUNT_ID) {
+        next = migrateBaseNameToDefaultAccount({
+          cfg: next,
+          channelKey: "groupme",
+        });
+      }
+
+      const updates: Record<string, unknown> = { enabled: true };
+      if (input.token?.trim()) updates.botId = input.token.trim();
+      if (input.accessToken?.trim())
+        updates.accessToken = input.accessToken.trim();
+      if (input.webhookPath?.trim())
+        updates.callbackPath = input.webhookPath.trim();
+
+      const section = (next.channels?.groupme ?? {}) as GroupMeConfig;
+
+      if (accountId === DEFAULT_ACCOUNT_ID) {
+        return {
+          ...next,
+          channels: {
+            ...next.channels,
+            groupme: {
+              ...section,
+              ...updates,
+            },
+          },
+        };
+      }
+
+      return {
+        ...next,
+        channels: {
+          ...next.channels,
+          groupme: {
+            ...section,
+            enabled: true,
+            accounts: {
+              ...(section.accounts ?? {}),
+              [accountId]: {
+                ...(section.accounts?.[accountId] ?? {}),
+                ...updates,
+              },
+            },
+          },
+        },
+      };
+    },
+  } satisfies ChannelSetupAdapter,
   capabilities: {
     chatTypes: ["group"],
     media: true,
