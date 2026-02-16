@@ -167,7 +167,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         groupId,
         // GroupMe requires a full URL at create-time. Use a stable placeholder
         // host and path only; users set their real public callback URL next.
-        callbackUrl: `https://example.com${callbackPath}`,
+        callbackUrl: `https://example.invalid${callbackPath}`,
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");
