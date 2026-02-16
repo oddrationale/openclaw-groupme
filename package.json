@@ -53,7 +53,7 @@
       "./index.ts"
     ],
     "channel": {
-      "id": "groupme",
+      "id": "openclaw-groupme",
       "label": "GroupMe",
       "selectionLabel": "GroupMe (Bot API)",
       "blurb": "GroupMe bot webhook integration (group chats only)."
