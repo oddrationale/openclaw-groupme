@@ -104,7 +104,8 @@ export async function createBot(params: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readApiError(response));
+    const apiError = await readApiError(response);
+    throw new Error(`GroupMe bot creation failed: ${apiError}`);
   }
 
   const payload = await response.json();
