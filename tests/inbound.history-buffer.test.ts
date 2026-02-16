@@ -4,7 +4,7 @@ import type {
   CoreConfig,
   GroupMeCallbackData,
   ResolvedGroupMeAccount,
-} from "./types.js";
+} from "../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -60,11 +60,11 @@ const core = vi.hoisted(() => {
   };
 });
 
-vi.mock("./runtime.js", () => ({
+vi.mock("../src/runtime.js", () => ({
   getGroupMeRuntime: () => core.runtime,
 }));
 
-import { handleGroupMeInbound } from "./inbound.js";
+import { handleGroupMeInbound } from "../src/inbound.js";
 
 function buildRuntimeEnv(): RuntimeEnv {
   return {

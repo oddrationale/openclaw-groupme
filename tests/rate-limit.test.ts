@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GroupMeRateLimiter } from "./rate-limit.js";
+import { GroupMeRateLimiter } from "../src/rate-limit.js";
 
 describe("GroupMeRateLimiter", () => {
   it("enforces per-ip threshold", () => {

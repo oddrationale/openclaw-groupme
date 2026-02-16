@@ -5,7 +5,7 @@ import {
   formatGroupMeHistoryEntry,
   resolveGroupMeBodyForAgent,
   resolveGroupMeHistoryLimit,
-} from "./history.js";
+} from "../src/history.js";
 
 describe("resolveGroupMeHistoryLimit", () => {
   it("uses default when unset", () => {

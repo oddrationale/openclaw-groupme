@@ -25,7 +25,6 @@
   "files": [
     "index.ts",
     "src/**/*.ts",
-    "!src/**/*.test.ts",
     "LICENSE",
     "README.md"
   ],

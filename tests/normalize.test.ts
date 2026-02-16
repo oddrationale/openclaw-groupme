@@ -5,7 +5,7 @@ import {
   normalizeGroupMeGroupId,
   normalizeGroupMeTarget,
   normalizeGroupMeUserId,
-} from "./normalize.js";
+} from "../src/normalize.js";
 
 describe("groupme normalize", () => {
   it("normalizes user and group ids", () => {
