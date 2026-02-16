@@ -259,7 +259,7 @@ If both config and env are set, config values take precedence.
 - Inbound bot/system messages are ignored
 - GroupMe message text limit is 1000 chars per chunk
 - Media replies require `accessToken` so OpenClaw can upload images to GroupMe
-- Onboarding creates the bot with a placeholder callback (`https://example.com/...`) to obtain `bot_id`; you must set the real public callback URL in GroupMe bot settings
+- Onboarding creates the bot with a placeholder callback (`https://example.com`) to obtain `bot_id`; you must set the real public callback URL in GroupMe bot settings
 
 ## Troubleshooting
 

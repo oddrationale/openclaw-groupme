@@ -55,18 +55,6 @@ function redactMiddle(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-3)}`;
 }
 
-function callbackPathFromCallbackUrl(callbackUrl: string): string {
-  try {
-    return new URL(callbackUrl, "http://localhost").pathname || "/groupme";
-  } catch {
-    const path = callbackUrl.split("?")[0]?.trim() ?? "";
-    if (!path) {
-      return "/groupme";
-    }
-    return path.startsWith("/") ? path : `/${path}`;
-  }
-}
-
 export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
   channel: "groupme",
   getStatus: async ({ cfg, accountOverrides }) => {
@@ -164,14 +152,13 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const botSpin = prompter.progress("Registering bot with GroupMe...");
     let botId = "";
     try {
-      const callbackPath = callbackPathFromCallbackUrl(callbackUrl);
       const bot = await createBot({
         accessToken,
         name: botName,
         groupId,
-        // GroupMe requires a full URL at create-time. Use a stable placeholder
-        // host and path only; users set their real public callback URL next.
-        callbackUrl: `https://example.invalid${callbackPath}`,
+        // GroupMe requires a full URL at create-time. Use a stable, reachable
+        // placeholder host; users set their real public callback URL next.
+        callbackUrl: "https://example.com",
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");

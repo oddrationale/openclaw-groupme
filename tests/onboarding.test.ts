@@ -122,9 +122,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
         accessToken: "access-token",
         name: "oddclaw",
         groupId: "g2",
-        callbackUrl: expect.stringMatching(
-          /^https:\/\/example\.invalid\/groupme\/[0-9a-f]{16}$/,
-        ),
+        callbackUrl: "https://example.com",
       }),
     );
   });
