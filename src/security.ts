@@ -382,7 +382,13 @@ function extractPathToken(pathname: string): string {
   if (segments.length === 0) {
     return "";
   }
-  return decodeURIComponent(segments[segments.length - 1] ?? "");
+  const lastSegment = segments[segments.length - 1] ?? "";
+  try {
+    return decodeURIComponent(lastSegment);
+  } catch {
+    // Malformed percent-encoding; treat as missing token instead of throwing.
+    return "";
+  }
 }
 
 function readCallbackToken(params: {
