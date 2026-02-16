@@ -74,6 +74,8 @@ All commits to `main` must go through a pull request. Every PR must have:
 
 Use `gh` CLI to create issues and PRs.
 
+When adding or changing user-facing features (new CLI options, config fields, setup methods, etc.), check whether `README.md` needs to be updated to reflect the change.
+
 ## Dependencies
 
 - **`zod`** (runtime) — config schema validation

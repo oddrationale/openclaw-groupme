@@ -33,13 +33,32 @@ openclaw plugins install openclaw-groupme
    - Copy your GroupMe `access token`
 
 3. Configure OpenClaw:
-   - Option A (interactive):
+   - Option A (interactive wizard):
 
 ```bash
 openclaw channels add --channel groupme
 ```
 
-- Option B (manual config): add this under your OpenClaw config:
+- Option B (CLI flags):
+
+```bash
+openclaw channels add --channel groupme \
+  --token "YOUR_GROUPME_BOT_ID" \
+  --access-token "YOUR_GROUPME_ACCESS_TOKEN" \
+  --webhook-path "/groupme/hook"
+```
+
+For named accounts:
+
+```bash
+openclaw channels add --channel groupme \
+  --account work \
+  --name "Work Bot" \
+  --token "YOUR_GROUPME_BOT_ID" \
+  --access-token "YOUR_GROUPME_ACCESS_TOKEN"
+```
+
+- Option C (manual config): add this under your OpenClaw config:
 
 ```yaml
 channels:
