@@ -174,7 +174,6 @@ async function downloadRemoteMedia(params: {
     const guarded = await fetchWithSsrFGuard({
       url: params.mediaUrl,
       fetchImpl: timedFetch,
-      timeoutMs: params.requestTimeoutMs,
       maxRedirects: 3,
       policy: {
         allowPrivateNetwork: params.allowPrivateNetworks,
