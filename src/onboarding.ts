@@ -55,6 +55,18 @@ function redactMiddle(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-3)}`;
 }
 
+function callbackPathFromCallbackUrl(callbackUrl: string): string {
+  try {
+    return new URL(callbackUrl, "http://localhost").pathname || "/groupme";
+  } catch {
+    const path = callbackUrl.split("?")[0]?.trim() ?? "";
+    if (!path) {
+      return "/groupme";
+    }
+    return path.startsWith("/") ? path : `/${path}`;
+  }
+}
+
 export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
   channel: "groupme",
   getStatus: async ({ cfg, accountOverrides }) => {
@@ -88,6 +100,14 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
   configure: async ({ cfg, prompter, accountOverrides }) => {
     const accountId = accountOverrides.groupme ?? DEFAULT_ACCOUNT_ID;
 
+    const botNameInput = (
+      await prompter.text({
+        message: "Bot name",
+        initialValue: "openclaw",
+      })
+    ).trim();
+    const botName = botNameInput || "openclaw";
+
     const accessToken = (
       await prompter.text({
         message: "GroupMe access token",
@@ -119,14 +139,6 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     }
     groupsSpin.stop(`Found ${groups.length} groups`);
 
-    const botNameInput = (
-      await prompter.text({
-        message: "Bot name",
-        initialValue: "openclaw",
-      })
-    ).trim();
-    const botName = botNameInput || "openclaw";
-
     const groupId = await prompter.select<string>({
       message: "Select a GroupMe group",
       options: groups.map((group) => ({
@@ -148,18 +160,22 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const botSpin = prompter.progress("Registering bot with GroupMe...");
     let botId = "";
     try {
+      const callbackPath = callbackPathFromCallbackUrl(callbackUrl);
       const bot = await createBot({
         accessToken,
         name: botName,
         groupId,
-        callbackUrl: `https://placeholder.example.com${callbackUrl}`,
+        // GroupMe requires a full URL at create-time. Use a stable placeholder
+        // host and path only; users set their real public callback URL next.
+        callbackUrl: `https://example.com${callbackPath}`,
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");
-    } catch {
+    } catch (error) {
       botSpin.stop("Failed");
+      const detail = error instanceof Error ? `\n\nDetails: ${error.message}` : "";
       await prompter.note(
-        "Failed to register bot with GroupMe. Check your access token and try again.",
+        `Failed to register bot with GroupMe. Check your access token and try again.${detail}`,
         "GroupMe setup failed",
       );
       throw new Error("Failed to register GroupMe bot");

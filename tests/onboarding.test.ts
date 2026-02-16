@@ -83,15 +83,15 @@ describe("groupmeOnboardingAdapter.configure", () => {
       group_id: "g2",
       name: "oddclaw",
       avatar_url: null,
-      callback_url: "https://placeholder.example.com/groupme/test?k=secret",
+      callback_url: "https://example.com/groupme/test",
       dm_notification: false,
       active: true,
     });
 
     const { prompter } = makePrompter();
     (prompter.text as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce("access-token")
-      .mockResolvedValueOnce("oddclaw");
+      .mockResolvedValueOnce("oddclaw")
+      .mockResolvedValueOnce("access-token");
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
 
@@ -123,7 +123,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
         name: "oddclaw",
         groupId: "g2",
         callbackUrl: expect.stringMatching(
-          /^https:\/\/placeholder\.example\.com\/groupme\/[0-9a-f]{16}\?k=[0-9a-f]{64}$/,
+          /^https:\/\/example\.com\/groupme\/[0-9a-f]{16}$/,
         ),
       }),
     );
@@ -133,7 +133,9 @@ describe("groupmeOnboardingAdapter.configure", () => {
     fetchGroupsMock.mockRejectedValueOnce(new Error("401"));
 
     const { prompter, progressSpins } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("bad-token");
+    (prompter.text as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("openclaw")
+      .mockResolvedValueOnce("bad-token");
 
     await expect(
       groupmeOnboardingAdapter.configure({
