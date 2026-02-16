@@ -2,6 +2,33 @@ import type { GroupMeApiBot, GroupMeApiGroup } from "./types.js";
 
 const GROUPME_API_BASE = "https://api.groupme.com/v3";
 
+async function readApiError(response: Response): Promise<string> {
+  const fallback = `GroupMe API error: ${response.status} ${response.statusText}`;
+  try {
+    const payload = await response.json();
+    if (
+      payload &&
+      typeof payload === "object" &&
+      (payload as { meta?: unknown }).meta &&
+      typeof (payload as { meta: { errors?: unknown } }).meta === "object"
+    ) {
+      const errors = (payload as { meta: { errors?: unknown } }).meta.errors;
+      if (Array.isArray(errors) && errors.length > 0) {
+        const text = errors
+          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+          .filter(Boolean)
+          .join("; ");
+        if (text) {
+          return `${fallback} (${text})`;
+        }
+      }
+    }
+  } catch {
+    // Ignore JSON parse errors; fall back to generic status text.
+  }
+  return fallback;
+}
+
 function readGroupsResponse(payload: unknown): GroupMeApiGroup[] {
   if (
     !payload ||
@@ -39,7 +66,7 @@ export async function fetchGroups(accessToken: string): Promise<GroupMeApiGroup[
 
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`GroupMe API error: ${response.status} ${response.statusText}`);
+      throw new Error(await readApiError(response));
     }
 
     const payload = await response.json();
@@ -77,9 +104,8 @@ export async function createBot(params: {
     }),
   });
   if (!response.ok) {
-    throw new Error(
-      `GroupMe bot creation failed: ${response.status} ${response.statusText}`,
-    );
+    const apiError = await readApiError(response);
+    throw new Error(`GroupMe bot creation failed: ${apiError}`);
   }
 
   const payload = await response.json();

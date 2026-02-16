@@ -72,7 +72,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       channel: "groupme",
       configured,
       statusLines: [
-        `GroupMe (${accountId}): ${configured ? "configured" : "needs botId"}`,
+        `GroupMe (${accountId}): ${configured ? "configured" : "needs access token"}`,
         account.config.accessToken?.trim()
           ? "Access token configured"
           : "Access token missing",
@@ -81,12 +81,20 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
           : "Webhook callback URL missing",
         groupIdConfigured ? "Group ID configured" : "Group ID missing",
       ],
-      selectionHint: configured ? "configured" : "needs bot ID",
+      selectionHint: configured ? "configured" : "needs access token",
       quickstartScore: configured ? 1 : 0,
     };
   },
   configure: async ({ cfg, prompter, accountOverrides }) => {
     const accountId = accountOverrides.groupme ?? DEFAULT_ACCOUNT_ID;
+
+    const botNameInput = (
+      await prompter.text({
+        message: "Bot name",
+        initialValue: "openclaw",
+      })
+    ).trim();
+    const botName = botNameInput || "openclaw";
 
     const accessToken = (
       await prompter.text({
@@ -119,14 +127,6 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     }
     groupsSpin.stop(`Found ${groups.length} groups`);
 
-    const botNameInput = (
-      await prompter.text({
-        message: "Bot name",
-        initialValue: "openclaw",
-      })
-    ).trim();
-    const botName = botNameInput || "openclaw";
-
     const groupId = await prompter.select<string>({
       message: "Select a GroupMe group",
       options: groups.map((group) => ({
@@ -136,6 +136,10 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       })),
     });
     const selectedGroup = groups.find((group) => group.id === groupId);
+    const requireMention = await prompter.confirm({
+      message: "Require mention to respond?",
+      initialValue: true,
+    });
 
     const pathSegment = randomBytes(8).toString("hex");
     const callbackToken = randomBytes(32).toString("hex");
@@ -152,28 +156,28 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         accessToken,
         name: botName,
         groupId,
-        callbackUrl: `https://placeholder.example.com${callbackUrl}`,
+        // GroupMe requires a full URL at create-time. Use a stable, reachable
+        // placeholder host; users set their real public callback URL next.
+        callbackUrl: "https://example.com",
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");
-    } catch {
+    } catch (error) {
       botSpin.stop("Failed");
+      const detail = error instanceof Error ? `\n\nDetails: ${error.message}` : "";
       await prompter.note(
-        "Failed to register bot with GroupMe. Check your access token and try again.",
+        `Failed to register bot with GroupMe. Check your access token and try again.${detail}`,
         "GroupMe setup failed",
       );
-      throw new Error("Failed to register GroupMe bot");
+      throw new Error("Failed to register GroupMe bot", {
+        cause: error instanceof Error ? error : undefined,
+      });
     }
 
     await prompter.note(
       `Bot "${botName}" registered in group "${selectedGroup?.name ?? groupId}" (bot ID: ${redactMiddle(botId)})`,
       "GroupMe bot registered",
     );
-
-    const requireMention = await prompter.confirm({
-      message: "Require mention to respond?",
-      initialValue: true,
-    });
 
     const next = applyGroupMeConfig({
       cfg,
