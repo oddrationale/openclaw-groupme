@@ -16,6 +16,7 @@ Restart the gateway after installing the plugin.
 2. A public HTTPS URL that can reach your OpenClaw gateway webhook endpoint
 3. Your GroupMe `bot_id` (required)
 4. Your GroupMe `access token` (recommended, required for image uploads)
+5. A webhook callback token and expected GroupMe `group_id` (recommended, enabled by default)
 
 ## Step-by-step setup
 
@@ -47,14 +48,24 @@ channels:
     botId: "YOUR_GROUPME_BOT_ID"
     accessToken: "YOUR_GROUPME_ACCESS_TOKEN"
     botName: "oddclaw"
-    callbackPath: "/groupme"
+    callbackPath: "/groupme/9f5d7c2a"
     requireMention: true
     historyLimit: 20
+    security:
+      callbackAuth:
+        enabled: true
+        token: "REPLACE_WITH_LONG_RANDOM_SECRET"
+        tokenLocation: "query"
+        queryKey: "k"
+        rejectStatus: 404
+      groupBinding:
+        enabled: true
+        expectedGroupId: "YOUR_GROUP_ID"
 ```
 
 4. Point GroupMe to your webhook:
-   - Callback URL format: `https://<your-public-domain><callbackPath>`
-   - Example: `https://bot.example.com/groupme`
+   - Callback URL format: `https://<your-public-domain><callbackPath>?k=<callback token>`
+   - Example: `https://bot.example.com/groupme/9f5d7c2a?k=REPLACE_WITH_LONG_RANDOM_SECRET`
    - Set this URL in the GroupMe bot settings
 
 5. Restart OpenClaw gateway:
@@ -138,6 +149,34 @@ channels:
     requireMention: true
     historyLimit: 30
     mentionPatterns: ["@oddclaw", "oddclaw"]
+    security:
+      callbackAuth:
+        enabled: true
+        token: "REPLACE_WITH_LONG_RANDOM_SECRET"
+        tokenLocation: "query"
+        queryKey: "k"
+        rejectStatus: 404
+      groupBinding:
+        enabled: true
+        expectedGroupId: "123456789"
+      replay:
+        enabled: true
+        ttlSeconds: 600
+        maxEntries: 10000
+      rateLimit:
+        enabled: true
+        windowMs: 60000
+        maxRequestsPerIp: 120
+        maxRequestsPerSender: 60
+        maxConcurrent: 8
+      media:
+        allowPrivateNetworks: false
+        maxDownloadBytes: 15728640
+        requestTimeoutMs: 10000
+        allowedMimePrefixes: ["image/"]
+      logging:
+        redactSecrets: true
+        logRejectedRequests: true
 
 # Large group — mention only, no history buffer
 channels:
@@ -148,6 +187,35 @@ channels:
     requireMention: true
     historyLimit: 0
 ```
+
+## Security hardening (default)
+
+The plugin now includes a staged webhook guard pipeline before inbound dispatch:
+
+1. Method check (`POST` only)
+2. Callback token auth (`security.callbackAuth`)
+3. JSON/body size + timeout checks
+4. Payload parsing + filtering of bot/system/empty messages
+5. Group binding (`security.groupBinding.expectedGroupId`)
+6. Replay protection (`security.replay`)
+7. Rate limiting + concurrency caps (`security.rateLimit`)
+
+Outbound media sends are also hardened:
+
+- SSRF-guarded fetch path
+- Private-network targets blocked by default
+- MIME allowlist enforcement (`image/*` by default)
+- Download byte cap and timeout enforcement
+
+## Callback URL format
+
+If `security.callbackAuth.enabled: true` and `tokenLocation: "query"` (default), your GroupMe callback URL must include the token query param:
+
+`https://<your-public-domain><callbackPath>?<queryKey>=<token>`
+
+Example:
+
+`https://bot.example.com/groupme/9f5d7c2a?k=REPLACE_WITH_LONG_RANDOM_SECRET`
 
 ## Config reference
 
@@ -162,6 +230,36 @@ channels:
 | `mentionPatterns` | string[] | —          | Custom regex patterns that count as a mention                 |
 | `allowFrom`       | array    | —          | Sender ID allowlist (`"*"` to allow all)                      |
 | `textChunkLimit`  | number   | `1000`     | Max outbound text chunk size                                  |
+| `security`        | object   | —          | Security hardening controls (auth, binding, replay, rate, media, logging) |
+
+### Security config reference
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `security.callbackAuth.enabled` | boolean | `true` | Enable callback token checks |
+| `security.callbackAuth.token` | string | — | Active callback token |
+| `security.callbackAuth.tokenLocation` | enum | `"query"` | Where token is read (`query`, `path`, `either`) |
+| `security.callbackAuth.queryKey` | string | `"k"` | Query parameter name when `tokenLocation` includes query |
+| `security.callbackAuth.previousTokens` | string[] | `[]` | Optional rotation grace tokens |
+| `security.callbackAuth.rejectStatus` | number | `404` | Reject status for auth failures (`200`, `401`, `403`, `404`) |
+| `security.groupBinding.enabled` | boolean | `true` | Enforce payload group ID binding |
+| `security.groupBinding.expectedGroupId` | string | — | Expected GroupMe `group_id` |
+| `security.replay.enabled` | boolean | `true` | Enable replay dedupe |
+| `security.replay.ttlSeconds` | number | `600` | Replay dedupe TTL |
+| `security.replay.maxEntries` | number | `10000` | Replay cache size bound |
+| `security.rateLimit.enabled` | boolean | `true` | Enable webhook rate limiting |
+| `security.rateLimit.windowMs` | number | `60000` | Sliding window size |
+| `security.rateLimit.maxRequestsPerIp` | number | `120` | Max webhook requests per IP per window |
+| `security.rateLimit.maxRequestsPerSender` | number | `60` | Max webhook requests per sender per window |
+| `security.rateLimit.maxConcurrent` | number | `8` | Max concurrent inbound executions |
+| `security.media.allowPrivateNetworks` | boolean | `false` | Allow private-network media fetch targets |
+| `security.media.maxDownloadBytes` | number | `15728640` | Max outbound media download size |
+| `security.media.requestTimeoutMs` | number | `10000` | Outbound media fetch timeout |
+| `security.media.allowedMimePrefixes` | string[] | `["image/"]` | Allowed outbound media MIME prefixes |
+| `security.logging.redactSecrets` | boolean | `true` | Redact callback secrets in logs/status |
+| `security.logging.logRejectedRequests` | boolean | `true` | Emit webhook rejection logs |
+| `security.commandBypass.requireAllowFrom` | boolean | `true` | Require `allowFrom` membership for control-command bypass |
+| `security.commandBypass.requireMentionForCommands` | boolean | `false` | Require mention even for control commands |
 
 ## Environment variables (default account fallback)
 
@@ -180,14 +278,19 @@ If both config and env are set, config values take precedence.
 - Inbound bot/system messages are ignored
 - GroupMe message text limit is 1000 chars per chunk
 - Media replies require `accessToken` so OpenClaw can upload images to GroupMe
+- If callback auth is enabled, GroupMe callback URL must include the configured token
 
 ## Troubleshooting
 
 - **Bot does not respond:**
   - Confirm webhook URL is public + HTTPS and matches `callbackPath`
+  - Confirm callback token query/path matches `security.callbackAuth` settings
   - Confirm `botId` is correct
   - If `requireMention: true`, mention the bot by name in the message
   - Check `allowFrom` (if set)
+- **Webhook returns 404/401/403:**
+  - Check callback token and `security.callbackAuth.rejectStatus`
+  - Check `security.groupBinding.expectedGroupId` matches inbound group
 - **Bot responds but has no context:**
   - Make sure `historyLimit` is not set to `0`
   - History is only buffered for `requireMention: true` mode

@@ -179,4 +179,95 @@ describe("high-level send helpers", () => {
       "https://api.groupme.com/v3/bots/post",
     );
   });
+
+  it("blocks non-image media content types", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+        },
+      },
+    };
+
+    const fetchMock = vi.fn(async () =>
+      Promise.resolve(
+        new Response("text", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      ),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/file.txt",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("MIME policy");
+  });
+
+  it("blocks oversized media downloads", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 2,
+            },
+          },
+        },
+      },
+    };
+
+    const fetchMock = vi.fn(async () =>
+      Promise.resolve(
+        new Response(Buffer.from("image-bytes"), {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": "11",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/image.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("maxDownloadBytes");
+  });
+
+  it("blocks private-network media URLs by default", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+        },
+      },
+    };
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "http://127.0.0.1/private.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("SSRF policy");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

@@ -6,6 +6,77 @@ import { z } from "zod";
 
 const allowFromEntry = z.union([z.string(), z.number()]);
 
+const GroupMeCallbackAuthSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+    token: z.string().optional(),
+    tokenLocation: z.enum(["query", "path", "either"]).optional(),
+    queryKey: z.string().optional(),
+    previousTokens: z.array(z.string()).optional(),
+    rejectStatus: z.union([z.literal(200), z.literal(401), z.literal(403), z.literal(404)]).optional(),
+  })
+  .strict();
+
+const GroupMeGroupBindingSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+    expectedGroupId: z.string().optional(),
+  })
+  .strict();
+
+const GroupMeReplaySchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+    ttlSeconds: z.number().int().positive().optional(),
+    maxEntries: z.number().int().positive().optional(),
+  })
+  .strict();
+
+const GroupMeRateLimitSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+    windowMs: z.number().int().positive().optional(),
+    maxRequestsPerIp: z.number().int().positive().optional(),
+    maxRequestsPerSender: z.number().int().positive().optional(),
+    maxConcurrent: z.number().int().positive().optional(),
+  })
+  .strict();
+
+const GroupMeMediaSecuritySchema = z
+  .object({
+    allowPrivateNetworks: z.boolean().optional().default(false),
+    maxDownloadBytes: z.number().int().positive().optional(),
+    requestTimeoutMs: z.number().int().positive().optional(),
+    allowedMimePrefixes: z.array(z.string()).optional(),
+  })
+  .strict();
+
+const GroupMeLoggingSecuritySchema = z
+  .object({
+    redactSecrets: z.boolean().optional().default(true),
+    logRejectedRequests: z.boolean().optional().default(true),
+  })
+  .strict();
+
+const GroupMeCommandBypassSecuritySchema = z
+  .object({
+    requireAllowFrom: z.boolean().optional().default(true),
+    requireMentionForCommands: z.boolean().optional().default(false),
+  })
+  .strict();
+
+const GroupMeSecuritySchema = z
+  .object({
+    callbackAuth: GroupMeCallbackAuthSchema.optional(),
+    groupBinding: GroupMeGroupBindingSchema.optional(),
+    replay: GroupMeReplaySchema.optional(),
+    rateLimit: GroupMeRateLimitSchema.optional(),
+    media: GroupMeMediaSecuritySchema.optional(),
+    logging: GroupMeLoggingSecuritySchema.optional(),
+    commandBypass: GroupMeCommandBypassSecuritySchema.optional(),
+  })
+  .strict();
+
 export const GroupMeAccountSchemaBase = z
   .object({
     name: z.string().optional(),
@@ -24,6 +95,7 @@ export const GroupMeAccountSchemaBase = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     responsePrefix: z.string().optional(),
     mediaMaxMb: z.number().positive().optional(),
+    security: GroupMeSecuritySchema.optional(),
   })
   .strict();
 

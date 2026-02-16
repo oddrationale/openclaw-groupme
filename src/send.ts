@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { SsrFBlockedError, fetchWithSsrFGuard } from "openclaw/plugin-sdk";
 import type { CoreConfig } from "./types.js";
 import { resolveGroupMeAccount } from "./accounts.js";
+import { resolveGroupMeSecurity } from "./security.js";
 
 export const GROUPME_API_BASE = "https://api.groupme.com/v3";
 export const GROUPME_IMAGE_SERVICE = "https://image.groupme.com";
@@ -117,20 +119,106 @@ export async function uploadGroupMeImage(params: {
 
 async function downloadRemoteMedia(params: {
   mediaUrl: string;
+  allowPrivateNetworks: boolean;
+  maxDownloadBytes: number;
+  requestTimeoutMs: number;
+  allowedMimePrefixes: string[];
   fetchFn?: FetchLike;
 }): Promise<{ data: Buffer; contentType: string }> {
-  const fetchFn = params.fetchFn ?? fetch;
-  const response = await fetchFn(params.mediaUrl);
-  if (!response.ok) {
-    throw new Error(
-      `GroupMe media download failed: ${response.status} ${response.statusText}`,
-    );
+  try {
+    const guarded = await fetchWithSsrFGuard({
+      url: params.mediaUrl,
+      fetchImpl: params.fetchFn,
+      timeoutMs: params.requestTimeoutMs,
+      maxRedirects: 3,
+      policy: {
+        allowPrivateNetwork: params.allowPrivateNetworks,
+      },
+      auditContext: "groupme-outbound-media",
+    });
+
+    try {
+      const response = guarded.response;
+      if (!response.ok) {
+        throw new Error(
+          `GroupMe media download failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const contentLength = Number(response.headers.get("content-length"));
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength > params.maxDownloadBytes
+      ) {
+        throw new Error(
+          `GroupMe media download exceeds maxDownloadBytes (${contentLength} > ${params.maxDownloadBytes})`,
+        );
+      }
+
+      const contentTypeHeader = response.headers.get("content-type") ?? "";
+      const contentType = contentTypeHeader.split(";")[0]?.trim().toLowerCase();
+      if (
+        !contentType ||
+        !params.allowedMimePrefixes.some((prefix) =>
+          contentType.startsWith(prefix.toLowerCase()),
+        )
+      ) {
+        throw new Error(
+          `GroupMe media download blocked by MIME policy (${contentType || "missing content-type"})`,
+        );
+      }
+
+      const data = await readResponseBodyWithLimit(
+        response,
+        params.maxDownloadBytes,
+      );
+      return { data, contentType };
+    } finally {
+      await guarded.release();
+    }
+  } catch (error) {
+    if (error instanceof SsrFBlockedError) {
+      throw new Error(`GroupMe media download blocked by SSRF policy`);
+    }
+    throw error;
+  }
+}
+
+async function readResponseBodyWithLimit(
+  response: Response,
+  maxDownloadBytes: number,
+): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.length > maxDownloadBytes) {
+      throw new Error(
+        `GroupMe media download exceeds maxDownloadBytes (${fallback.length} > ${maxDownloadBytes})`,
+      );
+    }
+    return fallback;
   }
 
-  const contentType = response.headers.get("content-type") || "image/jpeg";
-  const data = Buffer.from(await response.arrayBuffer());
-
-  return { data, contentType };
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const next = await reader.read();
+    if (next.done) {
+      break;
+    }
+    const chunk = next.value;
+    if (!chunk || chunk.length === 0) {
+      continue;
+    }
+    totalBytes += chunk.length;
+    if (totalBytes > maxDownloadBytes) {
+      throw new Error(
+        `GroupMe media download exceeds maxDownloadBytes (${totalBytes} > ${maxDownloadBytes})`,
+      );
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 export async function sendGroupMeText(params: {
@@ -177,8 +265,13 @@ export async function sendGroupMeMedia(params: {
     );
   }
 
+  const security = resolveGroupMeSecurity(account.config);
   const { data, contentType } = await downloadRemoteMedia({
     mediaUrl: params.mediaUrl,
+    allowPrivateNetworks: security.media.allowPrivateNetworks,
+    maxDownloadBytes: security.media.maxDownloadBytes,
+    requestTimeoutMs: security.media.requestTimeoutMs,
+    allowedMimePrefixes: security.media.allowedMimePrefixes,
     fetchFn: params.fetchFn,
   });
 

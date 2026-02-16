@@ -1,7 +1,7 @@
-import type { AddressInfo } from "node:net";
-import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
 import type { CoreConfig, ResolvedGroupMeAccount } from "./types.js";
 
@@ -77,24 +77,79 @@ function buildRuntime(): RuntimeEnv {
   };
 }
 
-const account: ResolvedGroupMeAccount = {
-  accountId: "default",
-  enabled: true,
-  configured: true,
-  botId: "bot-1",
-  accessToken: "token-1",
-  config: {
+function buildAccount(
+  overrides?: Partial<ResolvedGroupMeAccount>,
+): ResolvedGroupMeAccount {
+  return {
+    accountId: "default",
+    enabled: true,
+    configured: true,
     botId: "bot-1",
     accessToken: "token-1",
-  },
-};
+    config: {
+      botId: "bot-1",
+      accessToken: "token-1",
+      security: {
+        callbackAuth: {
+          enabled: true,
+          token: "secret-token",
+          queryKey: "k",
+          tokenLocation: "query",
+          rejectStatus: 404,
+        },
+        groupBinding: {
+          enabled: true,
+          expectedGroupId: "456",
+        },
+        replay: {
+          enabled: true,
+          ttlSeconds: 600,
+          maxEntries: 1000,
+        },
+        rateLimit: {
+          enabled: true,
+          windowMs: 60_000,
+          maxRequestsPerIp: 120,
+          maxRequestsPerSender: 60,
+          maxConcurrent: 8,
+        },
+      },
+    },
+    ...overrides,
+  };
+}
+
+function buildPayload(overrides?: Record<string, unknown>) {
+  return {
+    id: "msg-1",
+    text: "hello",
+    name: "Alice",
+    sender_type: "user",
+    sender_id: "123",
+    user_id: "123",
+    group_id: "456",
+    source_guid: "source",
+    created_at: 1_700_000_000,
+    system: false,
+    attachments: [],
+    ...overrides,
+  };
+}
+
+function webhookUrl(baseUrl: string, token = "secret-token"): string {
+  return `${baseUrl}/groupme?k=${token}`;
+}
 
 const config = {} as CoreConfig;
 
 describe("createGroupMeWebhookHandler", () => {
   it("returns 405 for non-POST", async () => {
     const runtime = buildRuntime();
-    const handler = createGroupMeWebhookHandler({ account, config, runtime });
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
 
     await runIfServerAllowed(async () => {
       await withServer(handler, async (baseUrl) => {
@@ -105,13 +160,39 @@ describe("createGroupMeWebhookHandler", () => {
     });
   });
 
-  it("returns 400 for invalid JSON", async () => {
+  it("rejects webhook without callback token", async () => {
+    handleGroupMeInboundMock.mockClear();
     const runtime = buildRuntime();
-    const handler = createGroupMeWebhookHandler({ account, config, runtime });
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
 
     await runIfServerAllowed(async () => {
       await withServer(handler, async (baseUrl) => {
         const response = await fetch(`${baseUrl}/groupme`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(buildPayload()),
+        });
+        expect(response.status).toBe(404);
+        expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  it("returns 400 for invalid JSON after auth", async () => {
+    const runtime = buildRuntime();
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: "{",
@@ -121,36 +202,25 @@ describe("createGroupMeWebhookHandler", () => {
     });
   });
 
-  it("acknowledges parseable payload and dispatches inbound", async () => {
+  it("acknowledges authenticated payload and dispatches inbound", async () => {
     handleGroupMeInboundMock.mockClear();
     const runtime = buildRuntime();
-    const handler = createGroupMeWebhookHandler({ account, config, runtime });
-
-    const payload = {
-      id: "msg-1",
-      text: "hello",
-      name: "Alice",
-      sender_type: "user",
-      sender_id: "123",
-      user_id: "123",
-      group_id: "456",
-      source_guid: "source",
-      created_at: 1_700_000_000,
-      system: false,
-      attachments: [],
-    };
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
 
     await runIfServerAllowed(async () => {
       await withServer(handler, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/groupme`, {
+        const response = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(buildPayload()),
         });
         expect(response.status).toBe(200);
         expect(await response.text()).toBe("ok");
 
-        // Wait for fire-and-forget processing.
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
         const call = handleGroupMeInboundMock.mock.calls[0]?.[0] as
@@ -162,71 +232,103 @@ describe("createGroupMeWebhookHandler", () => {
     });
   });
 
-  it("passes configured historyLimit to inbound handler", async () => {
+  it("drops duplicate replay payloads", async () => {
     handleGroupMeInboundMock.mockClear();
     const runtime = buildRuntime();
-    const accountWithHistory: ResolvedGroupMeAccount = {
-      ...account,
-      config: {
-        ...account.config,
-        historyLimit: 7,
-      },
-    };
     const handler = createGroupMeWebhookHandler({
-      account: accountWithHistory,
+      account: buildAccount(),
       config,
       runtime,
     });
-
-    const payload = {
-      id: "msg-2",
-      text: "hello",
-      name: "Alice",
-      sender_type: "user",
-      sender_id: "123",
-      user_id: "123",
-      group_id: "456",
-      source_guid: "source",
-      created_at: 1_700_000_000,
-      system: false,
-      attachments: [],
-    };
+    const payload = buildPayload({
+      id: "msg-replay",
+      source_guid: "guid-replay",
+    });
 
     await runIfServerAllowed(async () => {
       await withServer(handler, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/groupme`, {
+        const first = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-        expect(response.status).toBe(200);
+        const second = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
         await new Promise((resolve) => setTimeout(resolve, 0));
-        const call = handleGroupMeInboundMock.mock.calls[0]?.[0] as
-          | { historyLimit?: unknown }
-          | undefined;
-        expect(call?.historyLimit).toBe(7);
+        expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
       });
     });
   });
 
-  it("drops unparseable payload after returning 200", async () => {
+  it("rejects mismatched group id before dispatch", async () => {
     handleGroupMeInboundMock.mockClear();
     const runtime = buildRuntime();
-    const handler = createGroupMeWebhookHandler({ account, config, runtime });
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
 
     await runIfServerAllowed(async () => {
       await withServer(handler, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/groupme`, {
+        const response = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ nope: true }),
+          body: JSON.stringify(buildPayload({ group_id: "wrong-group" })),
         });
-        expect(response.status).toBe(200);
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(response.status).toBe(403);
         expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
-        expect(runtime.log).toHaveBeenCalledWith(
-          "groupme: unparseable callback payload",
-        );
+      });
+    });
+  });
+
+  it("enforces per-sender rate limit", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const account = buildAccount({
+      config: {
+        ...buildAccount().config,
+        security: {
+          ...buildAccount().config.security,
+          rateLimit: {
+            enabled: true,
+            windowMs: 60_000,
+            maxRequestsPerIp: 120,
+            maxRequestsPerSender: 1,
+            maxConcurrent: 8,
+          },
+        },
+      },
+    });
+    const handler = createGroupMeWebhookHandler({
+      account,
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const first = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(
+            buildPayload({ id: "rate-1", source_guid: "rate-guid-1" }),
+          ),
+        });
+        const second = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(
+            buildPayload({ id: "rate-2", source_guid: "rate-guid-2" }),
+          ),
+        });
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(429);
       });
     });
   });

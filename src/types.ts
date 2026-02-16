@@ -6,6 +6,61 @@ import type {
 
 export type GroupMeAllowFromEntry = string | number;
 
+export type GroupMeCallbackAuthConfig = {
+  enabled?: boolean;
+  token?: string;
+  tokenLocation?: "query" | "path" | "either";
+  queryKey?: string;
+  previousTokens?: string[];
+  rejectStatus?: 200 | 401 | 403 | 404;
+};
+
+export type GroupMeGroupBindingConfig = {
+  enabled?: boolean;
+  expectedGroupId?: string;
+};
+
+export type GroupMeReplayConfig = {
+  enabled?: boolean;
+  ttlSeconds?: number;
+  maxEntries?: number;
+};
+
+export type GroupMeRateLimitConfig = {
+  enabled?: boolean;
+  windowMs?: number;
+  maxRequestsPerIp?: number;
+  maxRequestsPerSender?: number;
+  maxConcurrent?: number;
+};
+
+export type GroupMeMediaSecurityConfig = {
+  allowPrivateNetworks?: boolean;
+  maxDownloadBytes?: number;
+  requestTimeoutMs?: number;
+  allowedMimePrefixes?: string[];
+};
+
+export type GroupMeLoggingSecurityConfig = {
+  redactSecrets?: boolean;
+  logRejectedRequests?: boolean;
+};
+
+export type GroupMeCommandBypassSecurityConfig = {
+  requireAllowFrom?: boolean;
+  requireMentionForCommands?: boolean;
+};
+
+export type GroupMeSecurityConfig = {
+  callbackAuth?: GroupMeCallbackAuthConfig;
+  groupBinding?: GroupMeGroupBindingConfig;
+  replay?: GroupMeReplayConfig;
+  rateLimit?: GroupMeRateLimitConfig;
+  media?: GroupMeMediaSecurityConfig;
+  logging?: GroupMeLoggingSecurityConfig;
+  commandBypass?: GroupMeCommandBypassSecurityConfig;
+};
+
 export type GroupMeAccountConfig = {
   name?: string;
   enabled?: boolean;
@@ -23,6 +78,7 @@ export type GroupMeAccountConfig = {
   blockStreamingCoalesce?: BlockStreamingCoalesceConfig;
   responsePrefix?: string;
   mediaMaxMb?: number;
+  security?: GroupMeSecurityConfig;
 };
 
 export type GroupMeConfig = GroupMeAccountConfig & {
@@ -102,3 +158,23 @@ export type GroupMeProbe = {
   botId?: string;
   error?: string;
 };
+
+export type CallbackAuthResult =
+  | { ok: true; tokenId: "active" | "previous" }
+  | {
+      ok: false;
+      reason: "missing" | "mismatch" | "disabled" | "not-configured";
+    };
+
+export type ReplayCheck =
+  | { kind: "accepted"; key: string }
+  | { kind: "duplicate"; key: string };
+
+export type WebhookDecision =
+  | { kind: "accept"; message: GroupMeCallbackData; release: () => void }
+  | {
+      kind: "reject";
+      status: number;
+      reason: string;
+      logLevel: "debug" | "warn";
+    };
