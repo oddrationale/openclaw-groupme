@@ -60,6 +60,24 @@ describe("fetchGroups", () => {
 
     await expect(fetchGroups("bad-token")).rejects.toThrow(/401/);
   });
+
+  it("includes meta.errors in the thrown error message", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(
+        {
+          meta: {
+            errors: ["Invalid access token", "Authentication failed"],
+          },
+        },
+        401,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchGroups("bad-token")).rejects.toThrow(
+      /401.*Invalid access token; Authentication failed/,
+    );
+  });
 });
 
 describe("createBot", () => {
@@ -116,5 +134,28 @@ describe("createBot", () => {
         callbackUrl: "https://placeholder.example.com/groupme/abc?k=secret",
       }),
     ).rejects.toThrow(/401/);
+  });
+
+  it("includes meta.errors in the thrown error message", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(
+        {
+          meta: {
+            errors: ["Group not found", "Bot name already exists"],
+          },
+        },
+        400,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createBot({
+        accessToken: "token-1",
+        name: "openclaw",
+        groupId: "invalid-group",
+        callbackUrl: "https://placeholder.example.com/groupme/abc?k=secret",
+      }),
+    ).rejects.toThrow(/400.*Group not found; Bot name already exists/);
   });
 });
