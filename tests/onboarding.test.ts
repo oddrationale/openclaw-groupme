@@ -83,7 +83,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
       group_id: "g2",
       name: "oddclaw",
       avatar_url: null,
-      callback_url: "https://example.com/groupme/test",
+      callback_url: "https://bot.example.com/groupme/test",
       dm_notification: false,
       active: true,
     });
@@ -91,7 +91,8 @@ describe("groupmeOnboardingAdapter.configure", () => {
     const { prompter } = makePrompter();
     (prompter.text as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce("oddclaw")
-      .mockResolvedValueOnce("access-token");
+      .mockResolvedValueOnce("access-token")
+      .mockResolvedValueOnce("https://bot.example.com/");
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
 
@@ -111,6 +112,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     expect(section.accessToken).toBe("access-token");
     expect(section.botName).toBe("oddclaw");
     expect(section.groupId).toBe("g2");
+    expect(section.publicDomain).toBe("bot.example.com");
     expect(section.requireMention).toBe(false);
     expect(section.callbackUrl).toMatch(
       /^\/groupme\/[0-9a-f]{16}\?k=[0-9a-f]{64}$/,
@@ -122,8 +124,16 @@ describe("groupmeOnboardingAdapter.configure", () => {
         accessToken: "access-token",
         name: "oddclaw",
         groupId: "g2",
-        callbackUrl: "https://example.com",
+        callbackUrl: `https://bot.example.com${section.callbackUrl as string}`,
       }),
+    );
+    expect(prompter.note).toHaveBeenCalledWith(
+      [
+        "Next steps:",
+        "1. Restart the gateway: openclaw gateway restart",
+        "2. Send a message in the group to test",
+      ].join("\n"),
+      "GroupMe next steps",
     );
   });
 

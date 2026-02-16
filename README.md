@@ -37,29 +37,21 @@ The wizard will:
 - Let you select a group
 - Register a bot automatically
 - Generate a secure callback URL
-- Write config fields (`botId`, `groupId`, `callbackUrl`, security defaults)
+- Write config fields (`botId`, `groupId`, `publicDomain`, `callbackUrl`, security defaults)
 
-4. Set your bot callback URL in GroupMe bot settings (`https://dev.groupme.com/bots`) to:
-
-`https://<your-public-domain><callbackUrl>`
-
-Example:
-
-`https://bot.example.com/groupme/e60b3e59da98950f?k=775c9958da544c73e6d97c04f884957caa174c8570889bbaa0900d6253f20bbc`
-
-5. Restart OpenClaw gateway:
+4. Restart OpenClaw gateway:
 
 ```bash
 openclaw gateway restart
 ```
 
-6. Verify channel status:
+5. Verify channel status:
 
 ```bash
 openclaw channels status --probe
 ```
 
-7. Send a test message in the GroupMe group.
+6. Send a test message in the GroupMe group.
 
 ## CLI setup (non-interactive)
 
@@ -99,6 +91,7 @@ channels:
     accessToken: "YOUR_GROUPME_ACCESS_TOKEN"
     botId: "YOUR_GROUPME_BOT_ID"
     groupId: "YOUR_GROUPME_GROUP_ID"
+    publicDomain: "bot.example.com"
     callbackUrl: "/groupme/e60b3e59da98950f?k=YOUR_SECRET"
     requireMention: true
     historyLimit: 20
@@ -207,6 +200,7 @@ Set the bot callback in GroupMe to:
 | `accessToken` | string | — | GroupMe access token (required for image uploads and onboarding API calls) |
 | `botName` | string | — | Bot display name used for mention detection |
 | `groupId` | string | — | Expected GroupMe `group_id` for inbound binding |
+| `publicDomain` | string | — | Public domain where the OpenClaw gateway is reachable (e.g. `bot.example.com`) |
 | `callbackUrl` | string | `/groupme` | Relative webhook URL including query token |
 | `requireMention` | boolean | `true` | Only respond when mentioned |
 | `historyLimit` | number | `20` | Max buffered messages per group when `requireMention: true` |
@@ -249,6 +243,7 @@ For the default account only:
 - `GROUPME_ACCESS_TOKEN`
 - `GROUPME_BOT_NAME`
 - `GROUPME_GROUP_ID`
+- `GROUPME_PUBLIC_DOMAIN`
 - `GROUPME_CALLBACK_URL`
 
 If both config and env are set, config values take precedence.
@@ -259,7 +254,8 @@ If both config and env are set, config values take precedence.
 - Inbound bot/system messages are ignored
 - GroupMe message text limit is 1000 chars per chunk
 - Media replies require `accessToken` so OpenClaw can upload images to GroupMe
-- Onboarding creates the bot with a placeholder callback (`https://example.com`) to obtain `bot_id`; you must set the real public callback URL in GroupMe bot settings
+- Onboarding registers the bot with the real callback URL using `publicDomain`
+- If you change your domain later, update `publicDomain` in config and update the bot callback URL at `https://dev.groupme.com/bots`
 
 ## Troubleshooting
 
@@ -277,6 +273,10 @@ If both config and env are set, config values take precedence.
   - History buffering is only used when `requireMention: true`
 - **Image replies fail:**
   - Ensure `accessToken` is configured
+- **Bot registration fails with "callback URL validation has failed":**
+  - GroupMe validates the callback domain at bot creation time (HEAD/ICMP ping)
+  - Your public domain must be live and reachable when running setup
+  - Verify the domain resolves and responds: `curl -I https://your-domain.com`
 - **Check runtime logs:**
 
 ```bash

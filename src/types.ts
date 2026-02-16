@@ -61,6 +61,7 @@ export type GroupMeAccountConfig = {
   accessToken?: string;
   botName?: string;
   groupId?: string;
+  publicDomain?: string;
   callbackUrl?: string;
   mentionPatterns?: string[];
   requireMention?: boolean;
