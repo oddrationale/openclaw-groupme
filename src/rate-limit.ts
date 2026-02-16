@@ -59,6 +59,10 @@ export class GroupMeRateLimiter {
     this.capStateSize(this.byIp);
     this.capStateSize(this.bySender);
 
+    if (this.inFlight >= this.maxConcurrent) {
+      return { kind: "rejected", scope: "concurrency" };
+    }
+
     if (
       !allowInWindow({
         state: this.byIp,
@@ -80,9 +84,6 @@ export class GroupMeRateLimiter {
       })
     ) {
       return { kind: "rejected", scope: "sender" };
-    }
-    if (this.inFlight >= this.maxConcurrent) {
-      return { kind: "rejected", scope: "concurrency" };
     }
 
     this.inFlight += 1;

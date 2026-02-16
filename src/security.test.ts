@@ -16,7 +16,7 @@ describe("verifyCallbackAuth", () => {
   it("accepts active token", () => {
     const security = buildSecurity({
       security: {
-        callbackAuth: { enabled: true, token: "active", queryKey: "k" },
+        callbackAuth: { token: "active", queryKey: "k" },
       },
     });
     const result = verifyCallbackAuth({
@@ -30,7 +30,6 @@ describe("verifyCallbackAuth", () => {
     const security = buildSecurity({
       security: {
         callbackAuth: {
-          enabled: true,
           token: "active",
           previousTokens: ["old"],
           queryKey: "k",
@@ -47,7 +46,7 @@ describe("verifyCallbackAuth", () => {
   it("rejects missing token", () => {
     const security = buildSecurity({
       security: {
-        callbackAuth: { enabled: true, token: "active", queryKey: "k" },
+        callbackAuth: { token: "active", queryKey: "k" },
       },
     });
     const result = verifyCallbackAuth({
@@ -60,7 +59,7 @@ describe("verifyCallbackAuth", () => {
   it("rejects mismatched token", () => {
     const security = buildSecurity({
       security: {
-        callbackAuth: { enabled: true, token: "active", queryKey: "k" },
+        callbackAuth: { token: "active", queryKey: "k" },
       },
     });
     const result = verifyCallbackAuth({
@@ -69,13 +68,41 @@ describe("verifyCallbackAuth", () => {
     });
     expect(result).toEqual({ ok: false, reason: "mismatch" });
   });
+
+  it("treats callback auth as disabled when token is not configured", () => {
+    const security = buildSecurity({
+      security: {
+        callbackAuth: {
+          queryKey: "k",
+        },
+      },
+    });
+    const result = verifyCallbackAuth({
+      url: new URL("http://localhost/groupme?k=anything"),
+      security,
+    });
+    expect(result).toEqual({ ok: false, reason: "disabled" });
+  });
 });
 
 describe("checkGroupBinding", () => {
+  it("treats binding as disabled when expected group id is not configured", () => {
+    const security = buildSecurity({
+      security: {
+        groupBinding: {},
+      },
+    });
+    expect(
+      checkGroupBinding({
+        expectedGroupId: security.groupBinding.expectedGroupId,
+        inboundGroupId: "456",
+      }),
+    ).toEqual({ ok: true });
+  });
+
   it("accepts expected group", () => {
     expect(
       checkGroupBinding({
-        enabled: true,
         expectedGroupId: "123",
         inboundGroupId: "123",
       }),
@@ -85,21 +112,19 @@ describe("checkGroupBinding", () => {
   it("rejects mismatch", () => {
     expect(
       checkGroupBinding({
-        enabled: true,
         expectedGroupId: "123",
         inboundGroupId: "456",
       }),
     ).toEqual({ ok: false, reason: "mismatch" });
   });
 
-  it("rejects missing expected group when binding is enabled", () => {
+  it("accepts when expected group id is missing", () => {
     expect(
       checkGroupBinding({
-        enabled: true,
         expectedGroupId: "",
         inboundGroupId: "456",
       }),
-    ).toEqual({ ok: false, reason: "missing" });
+    ).toEqual({ ok: true });
   });
 });
 
@@ -108,7 +133,6 @@ describe("redactCallbackUrl", () => {
     const security = buildSecurity({
       security: {
         callbackAuth: {
-          enabled: true,
           token: "active-token",
           previousTokens: ["old-token"],
           tokenLocation: "either",

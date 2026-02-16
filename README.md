@@ -16,7 +16,7 @@ Restart the gateway after installing the plugin.
 2. A public HTTPS URL that can reach your OpenClaw gateway webhook endpoint
 3. Your GroupMe `bot_id` (required)
 4. Your GroupMe `access token` (recommended, required for image uploads)
-5. A webhook callback token and expected GroupMe `group_id` (recommended, enabled by default)
+5. A webhook callback token and expected GroupMe `group_id` (recommended)
 
 ## Step-by-step setup
 
@@ -53,13 +53,11 @@ channels:
     historyLimit: 20
     security:
       callbackAuth:
-        enabled: true
         token: "REPLACE_WITH_LONG_RANDOM_SECRET"
         tokenLocation: "query"
         queryKey: "k"
         rejectStatus: 404
       groupBinding:
-        enabled: true
         expectedGroupId: "YOUR_GROUP_ID"
 ```
 
@@ -151,13 +149,11 @@ channels:
     mentionPatterns: ["@oddclaw", "oddclaw"]
     security:
       callbackAuth:
-        enabled: true
         token: "REPLACE_WITH_LONG_RANDOM_SECRET"
         tokenLocation: "query"
         queryKey: "k"
         rejectStatus: 404
       groupBinding:
-        enabled: true
         expectedGroupId: "123456789"
       replay:
         enabled: true
@@ -199,12 +195,15 @@ channels:
 The plugin now includes a staged webhook guard pipeline before inbound dispatch:
 
 1. Method check (`POST` only)
-2. Callback token auth (`security.callbackAuth`)
+2. Callback token auth (`security.callbackAuth.token`, when configured)
 3. JSON/body size + timeout checks
 4. Payload parsing + filtering of bot/system/empty messages
-5. Group binding (`security.groupBinding.expectedGroupId`)
+5. Group binding (`security.groupBinding.expectedGroupId`, when configured)
 6. Replay protection (`security.replay`)
 7. Rate limiting + concurrency caps (`security.rateLimit`)
+
+`security.callbackAuth` is active when `security.callbackAuth.token` is non-empty.
+`security.groupBinding` is active when `security.groupBinding.expectedGroupId` is non-empty.
 
 Outbound media sends are also hardened:
 
@@ -215,7 +214,7 @@ Outbound media sends are also hardened:
 
 ## Callback URL format
 
-If `security.callbackAuth.enabled: true` and `tokenLocation: "query"` (default), your GroupMe callback URL must include the token query param:
+If `security.callbackAuth.token` is set and `tokenLocation: "query"` (default), your GroupMe callback URL must include the token query param:
 
 `https://<your-public-domain><callbackPath>?<queryKey>=<token>`
 
@@ -242,14 +241,12 @@ Example:
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `security.callbackAuth.enabled` | boolean | `true` | Enable callback token checks |
-| `security.callbackAuth.token` | string | — | Active callback token |
+| `security.callbackAuth.token` | string | — | Active callback token. When set, callback token checks are enabled |
 | `security.callbackAuth.tokenLocation` | enum | `"query"` | Where token is read (`query`, `path`, `either`) |
 | `security.callbackAuth.queryKey` | string | `"k"` | Query parameter name when `tokenLocation` includes query |
 | `security.callbackAuth.previousTokens` | string[] | `[]` | Optional rotation grace tokens |
 | `security.callbackAuth.rejectStatus` | number | `404` | Reject status for auth failures (`200`, `401`, `403`, `404`) |
-| `security.groupBinding.enabled` | boolean | `true` | Enforce payload group ID binding |
-| `security.groupBinding.expectedGroupId` | string | — | Expected GroupMe `group_id` |
+| `security.groupBinding.expectedGroupId` | string | — | Expected GroupMe `group_id`. When set, payload group binding is enforced |
 | `security.replay.enabled` | boolean | `true` | Enable replay dedupe |
 | `security.replay.ttlSeconds` | number | `600` | Replay dedupe TTL |
 | `security.replay.maxEntries` | number | `10000` | Replay cache size bound |
@@ -289,7 +286,7 @@ If both config and env are set, config values take precedence.
 - Inbound bot/system messages are ignored
 - GroupMe message text limit is 1000 chars per chunk
 - Media replies require `accessToken` so OpenClaw can upload images to GroupMe
-- If callback auth is enabled, GroupMe callback URL must include the configured token
+- If `security.callbackAuth.token` is configured, GroupMe callback URL must include the configured token
 
 ## Troubleshooting
 

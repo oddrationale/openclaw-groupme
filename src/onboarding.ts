@@ -157,14 +157,12 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         requireMention,
         security: {
           callbackAuth: {
-            enabled: true,
             token: callbackToken,
             tokenLocation: "query",
             queryKey: "k",
             rejectStatus: 404,
           },
           groupBinding: {
-            enabled: true,
             expectedGroupId,
           },
           replay: {

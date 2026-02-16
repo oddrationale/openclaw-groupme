@@ -7,7 +7,6 @@ import type {
 export type GroupMeAllowFromEntry = string | number;
 
 export type GroupMeCallbackAuthConfig = {
-  enabled?: boolean;
   token?: string;
   tokenLocation?: "query" | "path" | "either";
   queryKey?: string;
@@ -16,7 +15,6 @@ export type GroupMeCallbackAuthConfig = {
 };
 
 export type GroupMeGroupBindingConfig = {
-  enabled?: boolean;
   expectedGroupId?: string;
 };
 
@@ -172,7 +170,7 @@ export type CallbackAuthResult =
   | { ok: true; tokenId: "active" | "previous" }
   | {
       ok: false;
-      reason: "missing" | "mismatch" | "disabled" | "not-configured";
+      reason: "missing" | "mismatch" | "disabled";
     };
 
 export type ReplayCheck =

@@ -17,7 +17,6 @@ const IPV6_MAX_CIDR_PREFIX = 128;
 
 export type ResolvedGroupMeSecurity = {
   callbackAuth: {
-    enabled: boolean;
     token: string;
     tokenLocation: "query" | "path" | "either";
     queryKey: string;
@@ -25,7 +24,6 @@ export type ResolvedGroupMeSecurity = {
     rejectStatus: 200 | 401 | 403 | 404;
   };
   groupBinding: {
-    enabled: boolean;
     expectedGroupId: string;
   };
   replay: {
@@ -263,6 +261,7 @@ export function resolveGroupMeSecurity(
   const previousTokens = normalizeTokenList(callbackAuth.previousTokens).filter(
     (token) => token !== activeToken,
   );
+  const expectedGroupId = readTrimmed(security.groupBinding?.expectedGroupId);
 
   const allowedMimePrefixes = Array.isArray(security.media?.allowedMimePrefixes)
     ? security.media.allowedMimePrefixes
@@ -282,7 +281,6 @@ export function resolveGroupMeSecurity(
 
   return {
     callbackAuth: {
-      enabled: callbackAuth.enabled !== false,
       token: activeToken,
       tokenLocation: callbackAuth.tokenLocation ?? "query",
       queryKey: readTrimmed(callbackAuth.queryKey) || "k",
@@ -290,8 +288,7 @@ export function resolveGroupMeSecurity(
       rejectStatus: callbackAuth.rejectStatus ?? 404,
     },
     groupBinding: {
-      enabled: security.groupBinding?.enabled !== false,
-      expectedGroupId: readTrimmed(security.groupBinding?.expectedGroupId),
+      expectedGroupId,
     },
     replay: {
       enabled: security.replay?.enabled !== false,
@@ -413,11 +410,8 @@ export function verifyCallbackAuth(params: {
   security: ResolvedGroupMeSecurity;
 }): CallbackAuthResult {
   const callbackAuth = params.security.callbackAuth;
-  if (!callbackAuth.enabled) {
-    return { ok: false, reason: "disabled" };
-  }
   if (!callbackAuth.token) {
-    return { ok: false, reason: "not-configured" };
+    return { ok: false, reason: "disabled" };
   }
 
   const token = readCallbackToken({
@@ -440,13 +434,9 @@ export function verifyCallbackAuth(params: {
 export function checkGroupBinding(params: {
   expectedGroupId: string;
   inboundGroupId: string;
-  enabled: boolean;
-}): { ok: true } | { ok: false; reason: "missing" | "mismatch" } {
-  if (!params.enabled) {
-    return { ok: true };
-  }
+}): { ok: true } | { ok: false; reason: "mismatch" } {
   if (!params.expectedGroupId) {
-    return { ok: false, reason: "missing" };
+    return { ok: true };
   }
   if (params.expectedGroupId !== params.inboundGroupId) {
     return { ok: false, reason: "mismatch" };

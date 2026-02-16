@@ -91,14 +91,12 @@ function buildAccount(
       accessToken: "token-1",
       security: {
         callbackAuth: {
-          enabled: true,
           token: "secret-token",
           queryKey: "k",
           tokenLocation: "query",
           rejectStatus: 404,
         },
         groupBinding: {
-          enabled: true,
           expectedGroupId: "456",
         },
         replay: {

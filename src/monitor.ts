@@ -187,17 +187,13 @@ async function decideWebhookRequest(params: {
   }
 
   const groupBinding = checkGroupBinding({
-    enabled: params.security.groupBinding.enabled,
     expectedGroupId: params.security.groupBinding.expectedGroupId,
     inboundGroupId: message.groupId,
   });
   if (!groupBinding.ok) {
     return rejectDecision({
       status: 403,
-      reason:
-        groupBinding.reason === "missing"
-          ? "group_binding_not_configured"
-          : "group_binding_mismatch",
+      reason: "group_binding_mismatch",
       logLevel: "warn",
     });
   }

@@ -8,7 +8,6 @@ const allowFromEntry = z.union([z.string(), z.number()]);
 
 const GroupMeCallbackAuthSchema = z
   .object({
-    enabled: z.boolean().optional().default(true),
     token: z.string().optional(),
     tokenLocation: z.enum(["query", "path", "either"]).optional(),
     queryKey: z.string().optional(),
@@ -19,7 +18,6 @@ const GroupMeCallbackAuthSchema = z
 
 const GroupMeGroupBindingSchema = z
   .object({
-    enabled: z.boolean().optional().default(true),
     expectedGroupId: z.string().optional(),
   })
   .strict();
