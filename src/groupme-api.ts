@@ -8,7 +8,7 @@ function readGroupsResponse(payload: unknown): GroupMeApiGroup[] {
     typeof payload !== "object" ||
     !Array.isArray((payload as { response?: unknown }).response)
   ) {
-    return [];
+    throw new Error("GroupMe groups fetch returned an invalid payload");
   }
   return (payload as { response: GroupMeApiGroup[] }).response;
 }
