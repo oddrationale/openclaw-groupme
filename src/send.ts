@@ -310,22 +310,34 @@ async function readResponseBodyWithLimit(
 
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  while (true) {
-    const next = await reader.read();
-    if (next.done) {
-      break;
+  let exceededLimit = false;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) {
+        break;
+      }
+      const chunk = next.value;
+      if (!chunk || chunk.length === 0) {
+        continue;
+      }
+      totalBytes += chunk.length;
+      if (totalBytes > maxDownloadBytes) {
+        exceededLimit = true;
+        throw new Error(
+          `GroupMe media download exceeds maxDownloadBytes (${totalBytes} > ${maxDownloadBytes})`,
+        );
+      }
+      chunks.push(chunk);
     }
-    const chunk = next.value;
-    if (!chunk || chunk.length === 0) {
-      continue;
+  } finally {
+    if (exceededLimit) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore cancellation errors; preserve original failure reason.
+      }
     }
-    totalBytes += chunk.length;
-    if (totalBytes > maxDownloadBytes) {
-      throw new Error(
-        `GroupMe media download exceeds maxDownloadBytes (${totalBytes} > ${maxDownloadBytes})`,
-      );
-    }
-    chunks.push(chunk);
   }
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
