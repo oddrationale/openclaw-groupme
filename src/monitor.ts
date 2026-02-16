@@ -130,7 +130,7 @@ async function decideWebhookRequest(params: {
   const auth = verifyCallbackAuth({ url: reqUrl, security: params.security });
   if (!auth.ok && auth.reason !== "disabled") {
     return rejectDecision({
-      status: params.security.callbackAuth.rejectStatus,
+      status: params.security.callbackRejectStatus,
       reason: `auth_${auth.reason}`,
       logLevel: "warn",
     });
@@ -187,7 +187,7 @@ async function decideWebhookRequest(params: {
   }
 
   const groupBinding = checkGroupBinding({
-    expectedGroupId: params.security.groupBinding.expectedGroupId,
+    expectedGroupId: params.security.expectedGroupId,
     inboundGroupId: message.groupId,
   });
   if (!groupBinding.ok) {

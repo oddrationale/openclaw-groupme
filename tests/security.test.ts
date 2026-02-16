@@ -15,9 +15,7 @@ function buildSecurity(config?: GroupMeAccountConfig) {
 describe("verifyCallbackAuth", () => {
   it("accepts active token", () => {
     const security = buildSecurity({
-      security: {
-        callbackAuth: { token: "active", queryKey: "k" },
-      },
+      callbackUrl: "/groupme/abc?k=active",
     });
     const result = verifyCallbackAuth({
       url: new URL("http://localhost/groupme?k=active"),
@@ -26,28 +24,9 @@ describe("verifyCallbackAuth", () => {
     expect(result).toEqual({ ok: true, tokenId: "active" });
   });
 
-  it("accepts previous token", () => {
-    const security = buildSecurity({
-      security: {
-        callbackAuth: {
-          token: "active",
-          previousTokens: ["old"],
-          queryKey: "k",
-        },
-      },
-    });
-    const result = verifyCallbackAuth({
-      url: new URL("http://localhost/groupme?k=old"),
-      security,
-    });
-    expect(result).toEqual({ ok: true, tokenId: "previous" });
-  });
-
   it("rejects missing token", () => {
     const security = buildSecurity({
-      security: {
-        callbackAuth: { token: "active", queryKey: "k" },
-      },
+      callbackUrl: "/groupme/abc?k=active",
     });
     const result = verifyCallbackAuth({
       url: new URL("http://localhost/groupme"),
@@ -58,9 +37,7 @@ describe("verifyCallbackAuth", () => {
 
   it("rejects mismatched token", () => {
     const security = buildSecurity({
-      security: {
-        callbackAuth: { token: "active", queryKey: "k" },
-      },
+      callbackUrl: "/groupme/abc?k=active",
     });
     const result = verifyCallbackAuth({
       url: new URL("http://localhost/groupme?k=bad"),
@@ -69,13 +46,9 @@ describe("verifyCallbackAuth", () => {
     expect(result).toEqual({ ok: false, reason: "mismatch" });
   });
 
-  it("treats callback auth as disabled when token is not configured", () => {
+  it("treats callback auth as disabled when callbackUrl token is missing", () => {
     const security = buildSecurity({
-      security: {
-        callbackAuth: {
-          queryKey: "k",
-        },
-      },
+      callbackUrl: "/groupme/abc",
     });
     const result = verifyCallbackAuth({
       url: new URL("http://localhost/groupme?k=anything"),
@@ -87,14 +60,10 @@ describe("verifyCallbackAuth", () => {
 
 describe("checkGroupBinding", () => {
   it("treats binding as disabled when expected group id is not configured", () => {
-    const security = buildSecurity({
-      security: {
-        groupBinding: {},
-      },
-    });
+    const security = buildSecurity({});
     expect(
       checkGroupBinding({
-        expectedGroupId: security.groupBinding.expectedGroupId,
+        expectedGroupId: security.expectedGroupId,
         inboundGroupId: "456",
       }),
     ).toEqual({ ok: true });
@@ -129,26 +98,18 @@ describe("checkGroupBinding", () => {
 });
 
 describe("redactCallbackUrl", () => {
-  it("redacts callback secrets in query and path", () => {
+  it("redacts callback token in query", () => {
     const security = buildSecurity({
-      security: {
-        callbackAuth: {
-          token: "active-token",
-          previousTokens: ["old-token"],
-          tokenLocation: "either",
-          queryKey: "k",
-        },
-      },
+      callbackUrl: "/groupme/abc?k=active-token",
     });
 
     const redacted = redactCallbackUrl(
-      "/groupme/active-token?k=old-token",
+      "/groupme/abc?k=active-token",
       security,
     );
 
     expect(redacted).toContain("[redacted]");
     expect(redacted).not.toContain("active-token");
-    expect(redacted).not.toContain("old-token");
   });
 });
 

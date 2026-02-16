@@ -6,18 +6,6 @@ import type {
 
 export type GroupMeAllowFromEntry = string | number;
 
-export type GroupMeCallbackAuthConfig = {
-  token?: string;
-  tokenLocation?: "query" | "path" | "either";
-  queryKey?: string;
-  previousTokens?: string[];
-  rejectStatus?: 200 | 401 | 403 | 404;
-};
-
-export type GroupMeGroupBindingConfig = {
-  expectedGroupId?: string;
-};
-
 export type GroupMeReplayConfig = {
   enabled?: boolean;
   ttlSeconds?: number;
@@ -58,8 +46,6 @@ export type GroupMeProxySecurityConfig = {
 };
 
 export type GroupMeSecurityConfig = {
-  callbackAuth?: GroupMeCallbackAuthConfig;
-  groupBinding?: GroupMeGroupBindingConfig;
   replay?: GroupMeReplayConfig;
   rateLimit?: GroupMeRateLimitConfig;
   media?: GroupMeMediaSecurityConfig;
@@ -74,7 +60,8 @@ export type GroupMeAccountConfig = {
   botId?: string;
   accessToken?: string;
   botName?: string;
-  callbackPath?: string;
+  groupId?: string;
+  callbackUrl?: string;
   mentionPatterns?: string[];
   requireMention?: boolean;
   historyLimit?: number;
@@ -167,11 +154,39 @@ export type GroupMeProbe = {
 };
 
 export type CallbackAuthResult =
-  | { ok: true; tokenId: "active" | "previous" }
+  | { ok: true; tokenId: "active" }
   | {
       ok: false;
       reason: "missing" | "mismatch" | "disabled";
     };
+
+export type GroupMeApiGroup = {
+  id: string;
+  name: string;
+  description: string;
+  image_url: string | null;
+  creator_user_id: string;
+  created_at: number;
+  updated_at: number;
+  messages: {
+    count: number;
+    last_message_created_at: number;
+    preview: {
+      nickname: string;
+      text: string;
+    };
+  };
+};
+
+export type GroupMeApiBot = {
+  bot_id: string;
+  group_id: string;
+  name: string;
+  avatar_url: string | null;
+  callback_url: string;
+  dm_notification: boolean;
+  active: boolean;
+};
 
 export type ReplayCheck =
   | { kind: "accepted"; key: string }
