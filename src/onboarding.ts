@@ -162,9 +162,21 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         },
       })
     ).trim();
-    const publicDomain = publicDomainRaw
-      .replace(/^https?:\/\//, "")
-      .replace(/\/+$/, "");
+    let publicDomain: string;
+    const trimmedPublicDomain = publicDomainRaw.trim();
+    try {
+      if (/^https?:\/\//i.test(trimmedPublicDomain)) {
+        const url = new URL(trimmedPublicDomain);
+        publicDomain = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+      } else {
+        const withoutLeadingSlashes = trimmedPublicDomain.replace(/^\/+/, "");
+        publicDomain = withoutLeadingSlashes.split(/[\/?#]/, 1)[0];
+      }
+    } catch {
+      // Fallback: best-effort stripping of scheme and any path/query/fragment
+      const noScheme = trimmedPublicDomain.replace(/^https?:\/\//i, "");
+      publicDomain = noScheme.split(/[\/?#]/, 1)[0];
+    }
 
     const pathSegment = randomBytes(8).toString("hex");
     const callbackToken = randomBytes(32).toString("hex");
