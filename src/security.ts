@@ -237,7 +237,7 @@ function extractCallbackToken(callbackUrl: string | undefined): string {
     const parsed = new URL(raw, "http://localhost");
     return parsed.searchParams.get("k")?.trim() ?? "";
   } catch {
-    return "";
+    throw new Error(`Invalid callbackUrl: unable to parse "${raw}"`);
   }
 }
 
