@@ -147,8 +147,19 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const publicDomainRaw = (
       await prompter.text({
         message: "Public domain (must be reachable — GroupMe will ping it)",
-        validate: (value) =>
-          value.trim() ? undefined : "Public domain is required",
+        validate: (value) => {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return "Public domain is required";
+          }
+          const normalized = trimmed
+            .replace(/^https?:\/\//, "")
+            .replace(/\/+$/, "");
+          if (!normalized) {
+            return "Public domain is required";
+          }
+          return undefined;
+        },
       })
     ).trim();
     const publicDomain = publicDomainRaw
