@@ -4,7 +4,7 @@ import {
   extractImageUrls,
   parseGroupMeCallback,
   shouldProcessCallback,
-} from "./parse.js";
+} from "../src/parse.js";
 
 const validPayload = {
   id: "msg-1",

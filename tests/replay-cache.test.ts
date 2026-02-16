@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GroupMeReplayCache } from "./replay-cache.js";
+import { GroupMeReplayCache } from "../src/replay-cache.js";
 
 describe("GroupMeReplayCache", () => {
   it("accepts first key and rejects duplicate within ttl", () => {

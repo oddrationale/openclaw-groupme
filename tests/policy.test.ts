@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSenderAccess } from "./policy.js";
+import { resolveSenderAccess } from "../src/policy.js";
 
 describe("resolveSenderAccess", () => {
   it("allows all when allowFrom is empty", () => {

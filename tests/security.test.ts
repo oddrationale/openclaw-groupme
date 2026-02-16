@@ -5,8 +5,8 @@ import {
   resolveGroupMeSecurity,
   validateProxyRequest,
   verifyCallbackAuth,
-} from "./security.js";
-import type { GroupMeAccountConfig } from "./types.js";
+} from "../src/security.js";
+import type { GroupMeAccountConfig } from "../src/types.js";
 
 function buildSecurity(config?: GroupMeAccountConfig) {
   return resolveGroupMeSecurity(config ?? {});
