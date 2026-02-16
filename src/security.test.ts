@@ -3,6 +3,7 @@ import {
   checkGroupBinding,
   redactCallbackUrl,
   resolveGroupMeSecurity,
+  validateProxyRequest,
   verifyCallbackAuth,
 } from "./security.js";
 import type { GroupMeAccountConfig } from "./types.js";
@@ -124,5 +125,116 @@ describe("redactCallbackUrl", () => {
     expect(redacted).toContain("[redacted]");
     expect(redacted).not.toContain("active-token");
     expect(redacted).not.toContain("old-token");
+  });
+});
+
+describe("validateProxyRequest", () => {
+  it("uses remote socket values when proxy security is disabled", () => {
+    const security = buildSecurity();
+    const result = validateProxyRequest({
+      headers: {
+        host: "local.example",
+        "x-forwarded-for": "198.51.100.1",
+        "x-forwarded-host": "forwarded.example",
+      },
+      remoteAddress: "127.0.0.1",
+      socketEncrypted: false,
+      security,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected proxy validation success");
+    }
+    expect(result.context.clientIp).toBe("127.0.0.1");
+    expect(result.context.host).toBe("local.example");
+    expect(result.context.proto).toBe("http");
+    expect(result.context.usingForwardedHeaders).toBe(false);
+  });
+
+  it("trusts x-forwarded-* headers only from configured proxy CIDRs", () => {
+    const security = buildSecurity({
+      security: {
+        proxy: {
+          enabled: true,
+          trustedProxyCidrs: ["127.0.0.1/32"],
+          allowedPublicHosts: ["bot.example.com"],
+          requireHttpsProto: true,
+          rejectStatus: 403,
+        },
+      },
+    });
+    const result = validateProxyRequest({
+      headers: {
+        host: "internal.example",
+        "x-forwarded-for": "198.51.100.25",
+        "x-forwarded-host": "bot.example.com",
+        "x-forwarded-proto": "https",
+      },
+      remoteAddress: "127.0.0.1",
+      socketEncrypted: false,
+      security,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected proxy validation success");
+    }
+    expect(result.context.clientIp).toBe("198.51.100.25");
+    expect(result.context.host).toBe("bot.example.com");
+    expect(result.context.proto).toBe("https");
+    expect(result.context.usingForwardedHeaders).toBe(true);
+  });
+
+  it("rejects disallowed public hosts when proxy policy is enabled", () => {
+    const security = buildSecurity({
+      security: {
+        proxy: {
+          enabled: true,
+          trustedProxyCidrs: ["127.0.0.1/32"],
+          allowedPublicHosts: ["bot.example.com"],
+          rejectStatus: 403,
+        },
+      },
+    });
+    const result = validateProxyRequest({
+      headers: {
+        host: "internal.example",
+        "x-forwarded-host": "attacker.example",
+      },
+      remoteAddress: "127.0.0.1",
+      socketEncrypted: true,
+      security,
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: "host_not_allowed",
+      status: 403,
+    });
+  });
+
+  it("enforces https proto when configured", () => {
+    const security = buildSecurity({
+      security: {
+        proxy: {
+          enabled: true,
+          trustedProxyCidrs: ["127.0.0.1/32"],
+          requireHttpsProto: true,
+          rejectStatus: 400,
+        },
+      },
+    });
+    const result = validateProxyRequest({
+      headers: {
+        host: "bot.example.com",
+        "x-forwarded-proto": "http",
+      },
+      remoteAddress: "127.0.0.1",
+      socketEncrypted: false,
+      security,
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: "proto_not_https",
+      status: 400,
+    });
   });
 });

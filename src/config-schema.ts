@@ -65,6 +65,18 @@ const GroupMeCommandBypassSecuritySchema = z
   })
   .strict();
 
+const GroupMeProxySecuritySchema = z
+  .object({
+    enabled: z.boolean().optional().default(false),
+    trustedProxyCidrs: z.array(z.string()).optional(),
+    allowedPublicHosts: z.array(z.string()).optional(),
+    requireHttpsProto: z.boolean().optional().default(false),
+    rejectStatus: z
+      .union([z.literal(400), z.literal(403), z.literal(404)])
+      .optional(),
+  })
+  .strict();
+
 const GroupMeSecuritySchema = z
   .object({
     callbackAuth: GroupMeCallbackAuthSchema.optional(),
@@ -74,6 +86,7 @@ const GroupMeSecuritySchema = z
     media: GroupMeMediaSecuritySchema.optional(),
     logging: GroupMeLoggingSecuritySchema.optional(),
     commandBypass: GroupMeCommandBypassSecuritySchema.optional(),
+    proxy: GroupMeProxySecuritySchema.optional(),
   })
   .strict();
 

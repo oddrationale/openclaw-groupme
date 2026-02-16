@@ -177,6 +177,12 @@ channels:
       logging:
         redactSecrets: true
         logRejectedRequests: true
+      proxy:
+        enabled: false
+        trustedProxyCidrs: ["127.0.0.1/32", "::1/128"]
+        allowedPublicHosts: ["bot.example.com"]
+        requireHttpsProto: true
+        rejectStatus: 403
 
 # Large group — mention only, no history buffer
 channels:
@@ -202,7 +208,7 @@ The plugin now includes a staged webhook guard pipeline before inbound dispatch:
 
 Outbound media sends are also hardened:
 
-- SSRF-guarded fetch path
+- Shared `runtime.channel.media.fetchRemoteMedia(...)` fetch path with SSRF policy
 - Private-network targets blocked by default
 - MIME allowlist enforcement (`image/*` by default)
 - Download byte cap and timeout enforcement
@@ -260,6 +266,11 @@ Example:
 | `security.logging.logRejectedRequests` | boolean | `true` | Emit webhook rejection logs |
 | `security.commandBypass.requireAllowFrom` | boolean | `true` | Require `allowFrom` membership for control-command bypass |
 | `security.commandBypass.requireMentionForCommands` | boolean | `false` | Require mention even for control commands |
+| `security.proxy.enabled` | boolean | `false` | Enable trusted-proxy-aware host/proto/client-IP validation |
+| `security.proxy.trustedProxyCidrs` | string[] | `[]` | Only trust `X-Forwarded-*` when source IP matches one of these CIDRs |
+| `security.proxy.allowedPublicHosts` | string[] | `[]` | Allowed effective public hosts (from trusted forwarded host or Host header) |
+| `security.proxy.requireHttpsProto` | boolean | `false` | Require effective protocol to be `https` |
+| `security.proxy.rejectStatus` | number | `403` | Reject status for proxy-policy failures (`400`, `403`, `404`) |
 
 ## Environment variables (default account fallback)
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoreConfig } from "./types.js";
+import { setGroupMeRuntime } from "./runtime.js";
 import {
   sendGroupMeMedia,
   sendGroupMeMessage,
@@ -269,5 +270,64 @@ describe("high-level send helpers", () => {
       }),
     ).rejects.toThrow("SSRF policy");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses runtime media fetch helper when runtime is available", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 1024,
+            },
+          },
+        },
+      },
+    };
+
+    const fetchRemoteMedia = vi.fn(async () => ({
+      buffer: Buffer.from("img"),
+      contentType: "image/png",
+    }));
+    setGroupMeRuntime({
+      channel: {
+        media: {
+          fetchRemoteMedia,
+        },
+      },
+    } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            payload: { picture_url: "https://i.groupme.com/new" },
+          }),
+          {
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 201 }));
+
+    await sendGroupMeMedia({
+      cfg,
+      to: "any",
+      text: "caption",
+      mediaUrl: "https://example.com/image.png",
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(fetchRemoteMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://example.com/image.png",
+        maxBytes: 1024,
+        maxRedirects: 3,
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

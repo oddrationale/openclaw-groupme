@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { SsrFBlockedError, fetchWithSsrFGuard } from "openclaw/plugin-sdk";
 import type { CoreConfig } from "./types.js";
 import { resolveGroupMeAccount } from "./accounts.js";
+import { getGroupMeRuntime } from "./runtime.js";
 import { resolveGroupMeSecurity } from "./security.js";
 
 export const GROUPME_API_BASE = "https://api.groupme.com/v3";
@@ -14,6 +15,18 @@ export type SendGroupMeResult = {
 };
 
 type FetchLike = typeof fetch;
+type RuntimeFetchRemoteMedia = (params: {
+  url: string;
+  fetchImpl?: FetchLike;
+  maxBytes?: number;
+  maxRedirects?: number;
+  ssrfPolicy?: {
+    allowPrivateNetwork?: boolean;
+  };
+}) => Promise<{
+  buffer: Buffer;
+  contentType?: string;
+}>;
 
 type GroupMeBotPostPayload = {
   bot_id: string;
@@ -125,10 +138,42 @@ async function downloadRemoteMedia(params: {
   allowedMimePrefixes: string[];
   fetchFn?: FetchLike;
 }): Promise<{ data: Buffer; contentType: string }> {
+  const timedFetch = wrapFetchWithTimeout(
+    params.fetchFn,
+    params.requestTimeoutMs,
+  );
+
+  try {
+    const runtimeFetcher = getGroupMeRuntime().channel.media
+      .fetchRemoteMedia as RuntimeFetchRemoteMedia;
+    const fetched = await runtimeFetcher({
+      url: params.mediaUrl,
+      fetchImpl: timedFetch,
+      maxBytes: params.maxDownloadBytes,
+      maxRedirects: 3,
+      ssrfPolicy: {
+        allowPrivateNetwork: params.allowPrivateNetworks,
+      },
+    });
+
+    const contentType = enforceMimePolicy({
+      contentType: fetched.contentType,
+      allowedMimePrefixes: params.allowedMimePrefixes,
+    });
+    return { data: fetched.buffer, contentType };
+  } catch (error) {
+    if (!isRuntimeNotInitializedError(error)) {
+      if (isSsrfRelatedError(error)) {
+        throw new Error(`GroupMe media download blocked by SSRF policy`);
+      }
+      throw error;
+    }
+  }
+
   try {
     const guarded = await fetchWithSsrFGuard({
       url: params.mediaUrl,
-      fetchImpl: params.fetchFn,
+      fetchImpl: timedFetch,
       timeoutMs: params.requestTimeoutMs,
       maxRedirects: 3,
       policy: {
@@ -155,18 +200,10 @@ async function downloadRemoteMedia(params: {
         );
       }
 
-      const contentTypeHeader = response.headers.get("content-type") ?? "";
-      const contentType = contentTypeHeader.split(";")[0]?.trim().toLowerCase();
-      if (
-        !contentType ||
-        !params.allowedMimePrefixes.some((prefix) =>
-          contentType.startsWith(prefix.toLowerCase()),
-        )
-      ) {
-        throw new Error(
-          `GroupMe media download blocked by MIME policy (${contentType || "missing content-type"})`,
-        );
-      }
+      const contentType = enforceMimePolicy({
+        contentType: response.headers.get("content-type") ?? "",
+        allowedMimePrefixes: params.allowedMimePrefixes,
+      });
 
       const data = await readResponseBodyWithLimit(
         response,
@@ -182,6 +219,79 @@ async function downloadRemoteMedia(params: {
     }
     throw error;
   }
+}
+
+function wrapFetchWithTimeout(
+  fetchFn: FetchLike | undefined,
+  timeoutMs: number,
+): FetchLike {
+  const base = fetchFn ?? fetch;
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort("GroupMe media fetch timed out");
+    }, timeoutMs);
+
+    const upstreamSignal = init?.signal;
+    const onAbort = () => controller.abort(upstreamSignal?.reason);
+    if (upstreamSignal) {
+      if (upstreamSignal.aborted) {
+        onAbort();
+      } else {
+        upstreamSignal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+
+    try {
+      return await base(input, {
+        ...init,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+      if (upstreamSignal) {
+        upstreamSignal.removeEventListener("abort", onAbort);
+      }
+    }
+  };
+}
+
+function enforceMimePolicy(params: {
+  contentType: string | undefined;
+  allowedMimePrefixes: string[];
+}): string {
+  const contentType = (params.contentType ?? "")
+    .split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  if (
+    !contentType ||
+    !params.allowedMimePrefixes.some((prefix) =>
+      contentType.startsWith(prefix.toLowerCase()),
+    )
+  ) {
+    throw new Error(
+      `GroupMe media download blocked by MIME policy (${contentType || "missing content-type"})`,
+    );
+  }
+  return contentType;
+}
+
+function isRuntimeNotInitializedError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /runtime not initialized/i.test(error.message);
+}
+
+function isSsrfRelatedError(error: unknown): boolean {
+  if (error instanceof SsrFBlockedError) {
+    return true;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /ssrf/i.test(error.message);
 }
 
 async function readResponseBodyWithLimit(

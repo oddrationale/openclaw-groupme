@@ -51,6 +51,14 @@ export type GroupMeCommandBypassSecurityConfig = {
   requireMentionForCommands?: boolean;
 };
 
+export type GroupMeProxySecurityConfig = {
+  enabled?: boolean;
+  trustedProxyCidrs?: string[];
+  allowedPublicHosts?: string[];
+  requireHttpsProto?: boolean;
+  rejectStatus?: 400 | 403 | 404;
+};
+
 export type GroupMeSecurityConfig = {
   callbackAuth?: GroupMeCallbackAuthConfig;
   groupBinding?: GroupMeGroupBindingConfig;
@@ -59,6 +67,7 @@ export type GroupMeSecurityConfig = {
   media?: GroupMeMediaSecurityConfig;
   logging?: GroupMeLoggingSecurityConfig;
   commandBypass?: GroupMeCommandBypassSecurityConfig;
+  proxy?: GroupMeProxySecurityConfig;
 };
 
 export type GroupMeAccountConfig = {

@@ -14,6 +14,7 @@ import {
   checkGroupBinding,
   redactCallbackUrl,
   resolveGroupMeSecurity,
+  validateProxyRequest,
   type ResolvedGroupMeSecurity,
   verifyCallbackAuth,
 } from "./security.js";
@@ -44,23 +45,6 @@ function rejectDecision(params: {
     reason: params.reason,
     logLevel: params.logLevel ?? "warn",
   };
-}
-
-function resolveClientIp(req: IncomingMessage): string {
-  const xForwardedFor = req.headers["x-forwarded-for"];
-  if (typeof xForwardedFor === "string") {
-    const first = xForwardedFor.split(",")[0]?.trim();
-    if (first) {
-      return first;
-    }
-  } else if (Array.isArray(xForwardedFor)) {
-    const first = xForwardedFor[0]?.split(",")[0]?.trim();
-    if (first) {
-      return first;
-    }
-  }
-
-  return req.socket.remoteAddress?.trim() || "unknown";
 }
 
 function formatRejectionBody(status: number): string {
@@ -152,6 +136,20 @@ async function decideWebhookRequest(params: {
     });
   }
 
+  const proxyValidation = validateProxyRequest({
+    headers: params.req.headers,
+    remoteAddress: params.req.socket.remoteAddress ?? "",
+    socketEncrypted: Boolean((params.req.socket as { encrypted?: boolean }).encrypted),
+    security: params.security,
+  });
+  if (!proxyValidation.ok) {
+    return rejectDecision({
+      status: proxyValidation.status,
+      reason: `proxy_${proxyValidation.reason}`,
+      logLevel: "warn",
+    });
+  }
+
   const body = await readJsonBodyWithLimit(params.req, {
     maxBytes: 64 * 1024,
     timeoutMs: 15_000,
@@ -220,7 +218,7 @@ async function decideWebhookRequest(params: {
   }
 
   const rate = params.rateLimiter.evaluate({
-    ip: resolveClientIp(params.req),
+    ip: proxyValidation.context.clientIp,
     senderId: message.senderId,
   });
   if (rate.kind === "rejected") {

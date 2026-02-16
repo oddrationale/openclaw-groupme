@@ -193,6 +193,13 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
             requireAllowFrom: true,
             requireMentionForCommands: false,
           },
+          proxy: {
+            enabled: false,
+            trustedProxyCidrs: ["127.0.0.1/32", "::1/128"],
+            allowedPublicHosts: [],
+            requireHttpsProto: false,
+            rejectStatus: 403,
+          },
         },
       },
     });

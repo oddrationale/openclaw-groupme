@@ -332,4 +332,145 @@ describe("createGroupMeWebhookHandler", () => {
       });
     });
   });
+
+  it("accepts trusted forwarded host/proto when proxy security is enabled", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const account = buildAccount({
+      config: {
+        ...buildAccount().config,
+        security: {
+          ...buildAccount().config.security,
+          proxy: {
+            enabled: true,
+            trustedProxyCidrs: ["127.0.0.1/32"],
+            allowedPublicHosts: ["bot.example.com"],
+            requireHttpsProto: true,
+            rejectStatus: 403,
+          },
+        },
+      },
+    });
+    const handler = createGroupMeWebhookHandler({
+      account,
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            host: "internal.gateway.local",
+            "x-forwarded-host": "bot.example.com",
+            "x-forwarded-proto": "https",
+            "x-forwarded-for": "198.51.100.55",
+          },
+          body: JSON.stringify(buildPayload()),
+        });
+        expect(response.status).toBe(200);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  it("rejects disallowed forwarded host when proxy policy is enabled", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const account = buildAccount({
+      config: {
+        ...buildAccount().config,
+        security: {
+          ...buildAccount().config.security,
+          proxy: {
+            enabled: true,
+            trustedProxyCidrs: ["127.0.0.1/32"],
+            allowedPublicHosts: ["bot.example.com"],
+            rejectStatus: 403,
+          },
+        },
+      },
+    });
+    const handler = createGroupMeWebhookHandler({
+      account,
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            host: "internal.gateway.local",
+            "x-forwarded-host": "attacker.example",
+          },
+          body: JSON.stringify(buildPayload()),
+        });
+        expect(response.status).toBe(403);
+        expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  it("ignores forwarded client ip when request is not from trusted proxy", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const account = buildAccount({
+      config: {
+        ...buildAccount().config,
+        security: {
+          ...buildAccount().config.security,
+          proxy: {
+            enabled: true,
+            trustedProxyCidrs: ["203.0.113.9/32"],
+            rejectStatus: 403,
+          },
+          rateLimit: {
+            enabled: true,
+            windowMs: 60_000,
+            maxRequestsPerIp: 1,
+            maxRequestsPerSender: 20,
+            maxConcurrent: 8,
+          },
+        },
+      },
+    });
+    const handler = createGroupMeWebhookHandler({
+      account,
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const first = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": "198.51.100.1",
+          },
+          body: JSON.stringify(
+            buildPayload({ id: "proxy-rate-1", source_guid: "proxy-rate-guid-1" }),
+          ),
+        });
+        const second = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": "198.51.100.2",
+          },
+          body: JSON.stringify(
+            buildPayload({ id: "proxy-rate-2", source_guid: "proxy-rate-guid-2" }),
+          ),
+        });
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(429);
+      });
+    });
+  });
 });
