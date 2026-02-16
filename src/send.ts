@@ -14,7 +14,7 @@ export type SendGroupMeResult = {
   timestamp: number;
 };
 
-type FetchLike = typeof fetch;
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type RuntimeFetchRemoteMedia = (params: {
   url: string;
   fetchImpl?: FetchLike;
