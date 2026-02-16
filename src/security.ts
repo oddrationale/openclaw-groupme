@@ -16,16 +16,9 @@ const IPV4_MAX_CIDR_PREFIX = 32;
 const IPV6_MAX_CIDR_PREFIX = 128;
 
 export type ResolvedGroupMeSecurity = {
-  callbackAuth: {
-    token: string;
-    tokenLocation: "query" | "path" | "either";
-    queryKey: string;
-    previousTokens: string[];
-    rejectStatus: 200 | 401 | 403 | 404;
-  };
-  groupBinding: {
-    expectedGroupId: string;
-  };
+  callbackToken: string;
+  callbackRejectStatus: 404;
+  expectedGroupId: string;
   replay: {
     enabled: boolean;
     ttlSeconds: number;
@@ -84,23 +77,6 @@ function readTrimmed(value: unknown): string {
     return "";
   }
   return value.trim();
-}
-
-function normalizeTokenList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const seen = new Set<string>();
-  const tokens: string[] = [];
-  for (const entry of value) {
-    const token = readTrimmed(entry);
-    if (!token || seen.has(token)) {
-      continue;
-    }
-    seen.add(token);
-    tokens.push(token);
-  }
-  return tokens;
 }
 
 function normalizeIpCandidate(raw: string): string {
@@ -252,16 +228,25 @@ function createTrustedProxyMatcher(entries: string[]): (ip: string) => boolean {
   };
 }
 
+function extractCallbackToken(callbackUrl: string | undefined): string {
+  const raw = callbackUrl?.trim() ?? "";
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = new URL(raw, "http://localhost");
+    return parsed.searchParams.get("k")?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function resolveGroupMeSecurity(
   accountConfig: GroupMeAccountConfig,
 ): ResolvedGroupMeSecurity {
   const security = (accountConfig.security ?? {}) as GroupMeSecurityConfig;
-  const callbackAuth = security.callbackAuth ?? {};
-  const activeToken = readTrimmed(callbackAuth.token);
-  const previousTokens = normalizeTokenList(callbackAuth.previousTokens).filter(
-    (token) => token !== activeToken,
-  );
-  const expectedGroupId = readTrimmed(security.groupBinding?.expectedGroupId);
+  const callbackToken = extractCallbackToken(accountConfig.callbackUrl);
+  const expectedGroupId = readTrimmed(accountConfig.groupId);
 
   const allowedMimePrefixes = Array.isArray(security.media?.allowedMimePrefixes)
     ? security.media.allowedMimePrefixes
@@ -280,16 +265,9 @@ export function resolveGroupMeSecurity(
     : [];
 
   return {
-    callbackAuth: {
-      token: activeToken,
-      tokenLocation: callbackAuth.tokenLocation ?? "query",
-      queryKey: readTrimmed(callbackAuth.queryKey) || "k",
-      previousTokens,
-      rejectStatus: callbackAuth.rejectStatus ?? 404,
-    },
-    groupBinding: {
-      expectedGroupId,
-    },
+    callbackToken,
+    callbackRejectStatus: 404,
+    expectedGroupId,
     replay: {
       enabled: security.replay?.enabled !== false,
       ttlSeconds:
@@ -370,63 +348,21 @@ function safeEqualToken(left: string, right: string): boolean {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function extractPathToken(pathname: string): string {
-  const trimmedPath = pathname.replace(/\/+$/, "");
-  if (!trimmedPath) {
-    return "";
-  }
-  const segments = trimmedPath.split("/").filter(Boolean);
-  if (segments.length === 0) {
-    return "";
-  }
-  const lastSegment = segments[segments.length - 1] ?? "";
-  try {
-    return decodeURIComponent(lastSegment);
-  } catch {
-    // Malformed percent-encoding; treat as missing token instead of throwing.
-    return "";
-  }
-}
-
-function readCallbackToken(params: {
-  url: URL;
-  tokenLocation: "query" | "path" | "either";
-  queryKey: string;
-}): string {
-  const queryToken = params.url.searchParams.get(params.queryKey)?.trim() ?? "";
-  const pathToken = extractPathToken(params.url.pathname).trim();
-
-  if (params.tokenLocation === "query") {
-    return queryToken;
-  }
-  if (params.tokenLocation === "path") {
-    return pathToken;
-  }
-  return queryToken || pathToken;
-}
-
 export function verifyCallbackAuth(params: {
   url: URL;
   security: ResolvedGroupMeSecurity;
 }): CallbackAuthResult {
-  const callbackAuth = params.security.callbackAuth;
-  if (!callbackAuth.token) {
+  const expectedToken = params.security.callbackToken;
+  if (!expectedToken) {
     return { ok: false, reason: "disabled" };
   }
 
-  const token = readCallbackToken({
-    url: params.url,
-    tokenLocation: callbackAuth.tokenLocation,
-    queryKey: callbackAuth.queryKey,
-  });
-  if (!token) {
+  const inboundToken = params.url.searchParams.get("k")?.trim() ?? "";
+  if (!inboundToken) {
     return { ok: false, reason: "missing" };
   }
-  if (safeEqualToken(token, callbackAuth.token)) {
+  if (safeEqualToken(inboundToken, expectedToken)) {
     return { ok: true, tokenId: "active" };
-  }
-  if (callbackAuth.previousTokens.some((prev) => safeEqualToken(token, prev))) {
-    return { ok: true, tokenId: "previous" };
   }
   return { ok: false, reason: "mismatch" };
 }
@@ -448,31 +384,19 @@ export function redactCallbackUrl(
   raw: string,
   security: ResolvedGroupMeSecurity,
 ): string {
-  const callbackAuth = security.callbackAuth;
-  let redacted = raw;
-
-  const tokens = [
-    callbackAuth.token,
-    ...callbackAuth.previousTokens,
-  ].filter(Boolean);
-  for (const token of tokens) {
-    redacted = redacted.replaceAll(token, "[redacted]");
+  if (!security.callbackToken) {
+    return raw;
   }
 
   try {
-    const parsed = new URL(redacted, "http://localhost");
-    if (
-      callbackAuth.tokenLocation === "query" ||
-      callbackAuth.tokenLocation === "either"
-    ) {
-      if (parsed.searchParams.has(callbackAuth.queryKey)) {
-        parsed.searchParams.set(callbackAuth.queryKey, "[redacted]");
-      }
+    const parsed = new URL(raw, "http://localhost");
+    if (parsed.searchParams.has("k")) {
+      parsed.searchParams.set("k", "[redacted]");
     }
     const serialized = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    return serialized || redacted;
+    return (serialized || raw).replaceAll("%5Bredacted%5D", "[redacted]");
   } catch {
-    return redacted;
+    return raw.replaceAll(security.callbackToken, "[redacted]");
   }
 }
 

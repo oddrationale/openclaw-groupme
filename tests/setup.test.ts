@@ -110,14 +110,24 @@ describe("setup.applyAccountConfig", () => {
     expect(section.accessToken).toBe("tok456");
   });
 
-  it("sets callbackPath from webhookPath", () => {
+  it("sets callbackUrl from webhookUrl", () => {
+    const result = setup.applyAccountConfig({
+      cfg: emptyCfg(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      input: { token: "bot123", webhookUrl: "/gm/hook?k=secret" },
+    });
+    const section = gmSection(result);
+    expect(section.callbackUrl).toBe("/gm/hook?k=secret");
+  });
+
+  it("sets callbackUrl from webhookPath fallback", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: { token: "bot123", webhookPath: "/gm/hook" },
     });
     const section = gmSection(result);
-    expect(section.callbackPath).toBe("/gm/hook");
+    expect(section.callbackUrl).toBe("/gm/hook");
   });
 
   it("preserves existing config fields", () => {
@@ -142,7 +152,7 @@ describe("setup.applyAccountConfig", () => {
     const section = gmSection(result);
     expect(section.botId).toBe("bot123");
     expect("accessToken" in section).toBe(false);
-    expect("callbackPath" in section).toBe(false);
+    expect("callbackUrl" in section).toBe(false);
   });
 
   it("creates accounts[id] entry for named account", () => {

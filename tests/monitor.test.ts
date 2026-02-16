@@ -89,16 +89,9 @@ function buildAccount(
     config: {
       botId: "bot-1",
       accessToken: "token-1",
+      groupId: "456",
+      callbackUrl: "/groupme?k=secret-token",
       security: {
-        callbackAuth: {
-          token: "secret-token",
-          queryKey: "k",
-          tokenLocation: "query",
-          rejectStatus: 404,
-        },
-        groupBinding: {
-          expectedGroupId: "456",
-        },
         replay: {
           enabled: true,
           ttlSeconds: 600,

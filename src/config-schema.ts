@@ -6,22 +6,6 @@ import { z } from "zod";
 
 const allowFromEntry = z.union([z.string(), z.number()]);
 
-const GroupMeCallbackAuthSchema = z
-  .object({
-    token: z.string().optional(),
-    tokenLocation: z.enum(["query", "path", "either"]).optional(),
-    queryKey: z.string().optional(),
-    previousTokens: z.array(z.string()).optional(),
-    rejectStatus: z.union([z.literal(200), z.literal(401), z.literal(403), z.literal(404)]).optional(),
-  })
-  .strict();
-
-const GroupMeGroupBindingSchema = z
-  .object({
-    expectedGroupId: z.string().optional(),
-  })
-  .strict();
-
 const GroupMeReplaySchema = z
   .object({
     enabled: z.boolean().optional().default(true),
@@ -77,8 +61,6 @@ const GroupMeProxySecuritySchema = z
 
 const GroupMeSecuritySchema = z
   .object({
-    callbackAuth: GroupMeCallbackAuthSchema.optional(),
-    groupBinding: GroupMeGroupBindingSchema.optional(),
     replay: GroupMeReplaySchema.optional(),
     rateLimit: GroupMeRateLimitSchema.optional(),
     media: GroupMeMediaSecuritySchema.optional(),
@@ -95,7 +77,8 @@ export const GroupMeAccountSchemaBase = z
     botId: z.string().optional(),
     accessToken: z.string().optional(),
     botName: z.string().optional(),
-    callbackPath: z.string().optional(),
+    groupId: z.string().optional(),
+    callbackUrl: z.string().optional(),
     mentionPatterns: z.array(z.string()).optional(),
     requireMention: z.boolean().optional().default(true),
     historyLimit: z.number().int().nonnegative().optional(),

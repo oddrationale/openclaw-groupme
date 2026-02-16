@@ -12,7 +12,8 @@ import type {
 const ENV_BOT_ID = "GROUPME_BOT_ID";
 const ENV_ACCESS_TOKEN = "GROUPME_ACCESS_TOKEN";
 const ENV_BOT_NAME = "GROUPME_BOT_NAME";
-const ENV_CALLBACK_PATH = "GROUPME_CALLBACK_PATH";
+const ENV_CALLBACK_URL = "GROUPME_CALLBACK_URL";
+const ENV_GROUP_ID = "GROUPME_GROUP_ID";
 
 function readTrimmed(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -128,10 +129,16 @@ export function resolveGroupMeAccount(params: {
     readTrimmed(merged.botName) ||
     (isDefaultAccount ? readTrimmed(process.env[ENV_BOT_NAME]) : undefined) ||
     undefined;
-  const callbackPath =
-    readTrimmed(merged.callbackPath) ||
+  const groupId =
+    readTrimmed(merged.groupId) ||
     (isDefaultAccount
-      ? readTrimmed(process.env[ENV_CALLBACK_PATH])
+      ? readTrimmed(process.env[ENV_GROUP_ID])
+      : undefined) ||
+    undefined;
+  const callbackUrl =
+    readTrimmed(merged.callbackUrl) ||
+    (isDefaultAccount
+      ? readTrimmed(process.env[ENV_CALLBACK_URL])
       : undefined) ||
     undefined;
 
@@ -140,7 +147,8 @@ export function resolveGroupMeAccount(params: {
     botId,
     accessToken,
     botName,
-    callbackPath,
+    groupId,
+    callbackUrl,
   };
 
   return {

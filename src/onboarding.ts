@@ -2,8 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { ChannelOnboardingAdapter } from "openclaw/plugin-sdk";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
-import type { CoreConfig, GroupMeConfig } from "./types.js";
 import { resolveGroupMeAccount } from "./accounts.js";
+import { createBot, fetchGroups } from "./groupme-api.js";
+import type { CoreConfig, GroupMeConfig } from "./types.js";
 
 function applyGroupMeConfig(params: {
   cfg: OpenClawConfig;
@@ -47,6 +48,13 @@ function applyGroupMeConfig(params: {
   };
 }
 
+function redactMiddle(value: string): string {
+  if (value.length <= 10) {
+    return value;
+  }
+  return `${value.slice(0, 6)}...${value.slice(-3)}`;
+}
+
 export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
   channel: "groupme",
   getStatus: async ({ cfg, accountOverrides }) => {
@@ -57,12 +65,9 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     });
 
     const configured = account.configured;
-    const callbackTokenConfigured = Boolean(
-      account.config.security?.callbackAuth?.token?.trim(),
-    );
-    const expectedGroupIdConfigured = Boolean(
-      account.config.security?.groupBinding?.expectedGroupId?.trim(),
-    );
+    const callbackUrlConfigured = Boolean(account.config.callbackUrl?.trim());
+    const groupIdConfigured = Boolean(account.config.groupId?.trim());
+
     return {
       channel: "groupme",
       configured,
@@ -70,13 +75,11 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         `GroupMe (${accountId}): ${configured ? "configured" : "needs botId"}`,
         account.config.accessToken?.trim()
           ? "Access token configured"
-          : "Access token missing (needed for image uploads)",
-        callbackTokenConfigured
-          ? "Webhook callback token configured"
-          : "Webhook callback token missing",
-        expectedGroupIdConfigured
-          ? "Group binding configured"
-          : "Group binding expectedGroupId missing",
+          : "Access token missing",
+        callbackUrlConfigured
+          ? "Webhook callback URL configured"
+          : "Webhook callback URL missing",
+        groupIdConfigured ? "Group ID configured" : "Group ID missing",
       ],
       selectionHint: configured ? "configured" : "needs bot ID",
       quickstartScore: configured ? 1 : 0,
@@ -85,61 +88,87 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
   configure: async ({ cfg, prompter, accountOverrides }) => {
     const accountId = accountOverrides.groupme ?? DEFAULT_ACCOUNT_ID;
 
-    await prompter.note(
-      [
-        "GroupMe bots are bound to a single group.",
-        "Create a bot at https://dev.groupme.com/bots and copy bot_id + access token.",
-      ].join("\n"),
-      "GroupMe setup",
-    );
-
-    const botId = (
-      await prompter.text({
-        message: "Bot ID",
-        validate: (value) => (value.trim() ? undefined : "Bot ID is required"),
-      })
-    ).trim();
-
     const accessToken = (
       await prompter.text({
-        message: "Access token",
+        message: "GroupMe access token",
         validate: (value) =>
           value.trim() ? undefined : "Access token is required",
       })
     ).trim();
 
-    const botName = (
+    const groupsSpin = prompter.progress("Fetching your GroupMe groups...");
+    let groups: Awaited<ReturnType<typeof fetchGroups>>;
+    try {
+      groups = await fetchGroups(accessToken);
+    } catch {
+      groupsSpin.stop("Failed");
+      await prompter.note(
+        "Could not fetch groups. Check your access token and try again.",
+        "GroupMe setup failed",
+      );
+      throw new Error("Could not fetch groups");
+    }
+
+    if (groups.length === 0) {
+      groupsSpin.stop("No groups found");
+      await prompter.note(
+        "No groups found. Create or join a GroupMe group first.",
+        "GroupMe setup failed",
+      );
+      throw new Error("No GroupMe groups found");
+    }
+    groupsSpin.stop(`Found ${groups.length} groups`);
+
+    const botNameInput = (
       await prompter.text({
-        message: "Bot name (mention fallback)",
+        message: "Bot name",
         initialValue: "openclaw",
       })
     ).trim();
+    const botName = botNameInput || "openclaw";
 
-    const callbackPath = (
-      await prompter.text({
-        message: "Webhook path",
-        initialValue: `/groupme/${randomBytes(8).toString("hex")}`,
-        validate: (value) =>
-          value.trim().startsWith("/") ? undefined : "Path must start with /",
-      })
-    ).trim();
-    const callbackToken = (
-      await prompter.text({
-        message: "Webhook callback token",
-        initialValue: randomBytes(32).toString("hex"),
-        validate: (value) =>
-          value.trim().length >= 16
-            ? undefined
-            : "Use a high-entropy token (at least 16 characters)",
-      })
-    ).trim();
-    const expectedGroupId = (
-      await prompter.text({
-        message: "Expected Group ID",
-        validate: (value) =>
-          value.trim() ? undefined : "Expected Group ID is required",
-      })
-    ).trim();
+    const groupId = await prompter.select<string>({
+      message: "Select a GroupMe group",
+      options: groups.map((group) => ({
+        value: group.id,
+        label: group.name || group.id,
+        hint: group.id,
+      })),
+    });
+    const selectedGroup = groups.find((group) => group.id === groupId);
+
+    const pathSegment = randomBytes(8).toString("hex");
+    const callbackToken = randomBytes(32).toString("hex");
+    const callbackUrl = `/groupme/${pathSegment}?k=${callbackToken}`;
+    await prompter.note(
+      `Generated webhook callback URL: /groupme/${pathSegment}?k=***`,
+      "Generated callback URL",
+    );
+
+    const botSpin = prompter.progress("Registering bot with GroupMe...");
+    let botId = "";
+    try {
+      const bot = await createBot({
+        accessToken,
+        name: botName,
+        groupId,
+        callbackUrl: `https://placeholder.example.com${callbackUrl}`,
+      });
+      botId = bot.bot_id;
+      botSpin.stop("Bot registered");
+    } catch {
+      botSpin.stop("Failed");
+      await prompter.note(
+        "Failed to register bot with GroupMe. Check your access token and try again.",
+        "GroupMe setup failed",
+      );
+      throw new Error("Failed to register GroupMe bot");
+    }
+
+    await prompter.note(
+      `Bot "${botName}" registered in group "${selectedGroup?.name ?? groupId}" (bot ID: ${redactMiddle(botId)})`,
+      "GroupMe bot registered",
+    );
 
     const requireMention = await prompter.confirm({
       message: "Require mention to respond?",
@@ -150,21 +179,13 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       cfg,
       accountId,
       updates: {
-        botId,
-        accessToken,
         botName,
-        callbackPath,
+        accessToken,
+        botId,
+        groupId,
+        callbackUrl,
         requireMention,
         security: {
-          callbackAuth: {
-            token: callbackToken,
-            tokenLocation: "query",
-            queryKey: "k",
-            rejectStatus: 404,
-          },
-          groupBinding: {
-            expectedGroupId,
-          },
           replay: {
             enabled: true,
             ttlSeconds: 600,
@@ -205,8 +226,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     await prompter.note(
       [
         "Next steps:",
-        `1. Set GroupMe callback URL to https://<your-domain>${callbackPath}?k=${callbackToken}`,
-        "2. Restart gateway",
+        `1. Set your GroupMe bot's callback URL to: https://<your-domain>${callbackUrl}`,
+        "2. Restart the gateway: openclaw gateway restart",
         "3. Send a message in the group to test",
       ].join("\n"),
       "GroupMe next steps",
