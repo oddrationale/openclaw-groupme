@@ -178,7 +178,9 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         `Failed to register bot with GroupMe. Check your access token and try again.${detail}`,
         "GroupMe setup failed",
       );
-      throw new Error("Failed to register GroupMe bot");
+      throw new Error("Failed to register GroupMe bot", {
+        cause: error instanceof Error ? error : undefined,
+      });
     }
 
     await prompter.note(
