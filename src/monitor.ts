@@ -47,32 +47,19 @@ function rejectDecision(params: {
   };
 }
 
+const STATUS_TEXT: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  405: "Method Not Allowed",
+  408: "Request Timeout",
+  413: "Payload Too Large",
+  429: "Too Many Requests",
+};
+
 function formatRejectionBody(status: number): string {
-  if (status === 404) {
-    return "Not Found";
-  }
-  if (status === 403) {
-    return "Forbidden";
-  }
-  if (status === 401) {
-    return "Unauthorized";
-  }
-  if (status === 429) {
-    return "Too Many Requests";
-  }
-  if (status === 400) {
-    return "Bad Request";
-  }
-  if (status === 405) {
-    return "Method Not Allowed";
-  }
-  if (status === 408) {
-    return "Request Timeout";
-  }
-  if (status === 413) {
-    return "Payload Too Large";
-  }
-  return "rejected";
+  return STATUS_TEXT[status] ?? "rejected";
 }
 
 function asRequestBodyErrorCode(

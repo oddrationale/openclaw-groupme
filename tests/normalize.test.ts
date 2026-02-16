@@ -2,20 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   looksLikeGroupMeTargetId,
   normalizeGroupMeAllowEntry,
-  normalizeGroupMeGroupId,
   normalizeGroupMeTarget,
-  normalizeGroupMeUserId,
+  normalizeStringId,
 } from "../src/normalize.js";
 
 describe("groupme normalize", () => {
-  it("normalizes user and group ids", () => {
-    expect(normalizeGroupMeUserId(" 123 ")).toBe("123");
-    expect(normalizeGroupMeGroupId(456)).toBe("456");
+  it("normalizes string ids", () => {
+    expect(normalizeStringId(" 123 ")).toBe("123");
+    expect(normalizeStringId(456)).toBe("456");
   });
 
   it("returns undefined for empty IDs", () => {
-    expect(normalizeGroupMeUserId("   ")).toBeUndefined();
-    expect(normalizeGroupMeGroupId("")).toBeUndefined();
+    expect(normalizeStringId("   ")).toBeUndefined();
+    expect(normalizeStringId("")).toBeUndefined();
   });
 
   it("normalizes prefixed targets", () => {

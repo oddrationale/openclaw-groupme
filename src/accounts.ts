@@ -15,7 +15,7 @@ const ENV_BOT_NAME = "GROUPME_BOT_NAME";
 const ENV_CALLBACK_URL = "GROUPME_CALLBACK_URL";
 const ENV_GROUP_ID = "GROUPME_GROUP_ID";
 
-function readTrimmed(value: unknown): string | undefined {
+export function readTrimmed(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }

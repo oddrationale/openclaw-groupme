@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import { BlockList, isIP } from "node:net";
+import { readTrimmed } from "./accounts.js";
 import type {
   CallbackAuthResult,
   GroupMeAccountConfig,
@@ -72,11 +73,10 @@ export type GroupMeProxyValidation =
       status: number;
     };
 
-function readTrimmed(value: unknown): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.trim();
+function positiveIntOrDefault(value: unknown, fallback: number): number {
+  return Number.isFinite(value) && (value as number) > 0
+    ? Math.floor(value as number)
+    : fallback;
 }
 
 function normalizeIpCandidate(raw: string): string {
@@ -246,21 +246,21 @@ export function resolveGroupMeSecurity(
 ): ResolvedGroupMeSecurity {
   const security = (accountConfig.security ?? {}) as GroupMeSecurityConfig;
   const callbackToken = extractCallbackToken(accountConfig.callbackUrl);
-  const expectedGroupId = readTrimmed(accountConfig.groupId);
+  const expectedGroupId = readTrimmed(accountConfig.groupId) ?? "";
 
   const allowedMimePrefixes = Array.isArray(security.media?.allowedMimePrefixes)
     ? security.media.allowedMimePrefixes
         .map((prefix) => readTrimmed(prefix))
-        .filter(Boolean)
+        .filter((entry): entry is string => Boolean(entry))
     : ["image/"];
   const trustedProxyCidrs = Array.isArray(security.proxy?.trustedProxyCidrs)
     ? security.proxy.trustedProxyCidrs
         .map((entry) => readTrimmed(entry))
-        .filter(Boolean)
+        .filter((entry): entry is string => Boolean(entry))
     : [];
   const allowedPublicHosts = Array.isArray(security.proxy?.allowedPublicHosts)
     ? security.proxy.allowedPublicHosts
-        .map((entry) => normalizeHost(readTrimmed(entry)))
+        .map((entry) => normalizeHost(readTrimmed(entry) ?? ""))
         .filter(Boolean)
     : [];
 
@@ -270,52 +270,20 @@ export function resolveGroupMeSecurity(
     expectedGroupId,
     replay: {
       enabled: security.replay?.enabled !== false,
-      ttlSeconds:
-        Number.isFinite(security.replay?.ttlSeconds) &&
-        (security.replay?.ttlSeconds as number) > 0
-          ? Math.floor(security.replay?.ttlSeconds as number)
-          : 600,
-      maxEntries:
-        Number.isFinite(security.replay?.maxEntries) &&
-        (security.replay?.maxEntries as number) > 0
-          ? Math.floor(security.replay?.maxEntries as number)
-          : 10_000,
+      ttlSeconds: positiveIntOrDefault(security.replay?.ttlSeconds, 600),
+      maxEntries: positiveIntOrDefault(security.replay?.maxEntries, 10_000),
     },
     rateLimit: {
       enabled: security.rateLimit?.enabled !== false,
-      windowMs:
-        Number.isFinite(security.rateLimit?.windowMs) &&
-        (security.rateLimit?.windowMs as number) > 0
-          ? Math.floor(security.rateLimit?.windowMs as number)
-          : 60_000,
-      maxRequestsPerIp:
-        Number.isFinite(security.rateLimit?.maxRequestsPerIp) &&
-        (security.rateLimit?.maxRequestsPerIp as number) > 0
-          ? Math.floor(security.rateLimit?.maxRequestsPerIp as number)
-          : 120,
-      maxRequestsPerSender:
-        Number.isFinite(security.rateLimit?.maxRequestsPerSender) &&
-        (security.rateLimit?.maxRequestsPerSender as number) > 0
-          ? Math.floor(security.rateLimit?.maxRequestsPerSender as number)
-          : 60,
-      maxConcurrent:
-        Number.isFinite(security.rateLimit?.maxConcurrent) &&
-        (security.rateLimit?.maxConcurrent as number) > 0
-          ? Math.floor(security.rateLimit?.maxConcurrent as number)
-          : 8,
+      windowMs: positiveIntOrDefault(security.rateLimit?.windowMs, 60_000),
+      maxRequestsPerIp: positiveIntOrDefault(security.rateLimit?.maxRequestsPerIp, 120),
+      maxRequestsPerSender: positiveIntOrDefault(security.rateLimit?.maxRequestsPerSender, 60),
+      maxConcurrent: positiveIntOrDefault(security.rateLimit?.maxConcurrent, 8),
     },
     media: {
       allowPrivateNetworks: security.media?.allowPrivateNetworks === true,
-      maxDownloadBytes:
-        Number.isFinite(security.media?.maxDownloadBytes) &&
-        (security.media?.maxDownloadBytes as number) > 0
-          ? Math.floor(security.media?.maxDownloadBytes as number)
-          : 15 * 1024 * 1024,
-      requestTimeoutMs:
-        Number.isFinite(security.media?.requestTimeoutMs) &&
-        (security.media?.requestTimeoutMs as number) > 0
-          ? Math.floor(security.media?.requestTimeoutMs as number)
-          : 10_000,
+      maxDownloadBytes: positiveIntOrDefault(security.media?.maxDownloadBytes, 15 * 1024 * 1024),
+      requestTimeoutMs: positiveIntOrDefault(security.media?.requestTimeoutMs, 10_000),
       allowedMimePrefixes:
         allowedMimePrefixes.length > 0 ? allowedMimePrefixes : ["image/"],
     },

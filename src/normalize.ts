@@ -1,18 +1,6 @@
-function normalizeStringId(raw: string | number): string | undefined {
+export function normalizeStringId(raw: string | number): string | undefined {
   const normalized = String(raw).trim();
   return normalized || undefined;
-}
-
-export function normalizeGroupMeUserId(
-  raw: string | number,
-): string | undefined {
-  return normalizeStringId(raw);
-}
-
-export function normalizeGroupMeGroupId(
-  raw: string | number,
-): string | undefined {
-  return normalizeStringId(raw);
 }
 
 const TARGET_PREFIX_RE = /^(groupme:)?(user:|group:)?/i;
