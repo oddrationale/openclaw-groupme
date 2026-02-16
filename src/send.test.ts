@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoreConfig } from "./types.js";
+import { setGroupMeRuntime } from "./runtime.js";
 import {
   sendGroupMeMedia,
   sendGroupMeMessage,
@@ -178,5 +179,160 @@ describe("high-level send helpers", () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       "https://api.groupme.com/v3/bots/post",
     );
+  });
+
+  it("blocks non-image media content types", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+        },
+      },
+    };
+
+    const fetchMock = vi.fn(async () =>
+      Promise.resolve(
+        new Response("text", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      ),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/file.txt",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("MIME policy");
+  });
+
+  it("blocks oversized media downloads", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 2,
+            },
+          },
+        },
+      },
+    };
+
+    const fetchMock = vi.fn(async () =>
+      Promise.resolve(
+        new Response(Buffer.from("image-bytes"), {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": "11",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/image.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("maxDownloadBytes");
+  });
+
+  it("blocks private-network media URLs by default", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+        },
+      },
+    };
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "http://127.0.0.1/private.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("SSRF policy");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses runtime media fetch helper when runtime is available", async () => {
+    try {
+      const cfg: CoreConfig = {
+        channels: {
+          groupme: {
+            botId: "bot-1",
+            accessToken: "token-1",
+            security: {
+              media: {
+                maxDownloadBytes: 1024,
+              },
+            },
+          },
+        },
+      };
+
+      const fetchRemoteMedia = vi.fn(async () => ({
+        buffer: Buffer.from("img"),
+        contentType: "image/png",
+      }));
+      setGroupMeRuntime({
+        channel: {
+          media: {
+            fetchRemoteMedia,
+          },
+        },
+      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              payload: { picture_url: "https://i.groupme.com/new" },
+            }),
+            {
+              status: 200,
+            },
+          ),
+        )
+        .mockResolvedValueOnce(new Response("", { status: 201 }));
+
+      await sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/image.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      });
+
+      expect(fetchRemoteMedia).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: "https://example.com/image.png",
+          maxBytes: 1024,
+          maxRedirects: 3,
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      // Reset the global GroupMe runtime to avoid cross-test interference.
+      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+    }
   });
 });

@@ -31,6 +31,7 @@ import {
   sendGroupMeMedia,
   sendGroupMeText,
 } from "./send.js";
+import { resolveGroupMeSecurity } from "./security.js";
 
 const CHANNEL_ID = "groupme" as const;
 
@@ -181,6 +182,7 @@ export async function handleGroupMeInbound(params: {
   });
 
   const allowFrom = account.config.allowFrom ?? [];
+  const security = resolveGroupMeSecurity(account.config);
   const senderAllowed = resolveSenderAccess({
     senderId: message.senderId,
     allowFrom,
@@ -222,9 +224,17 @@ export async function handleGroupMeInbound(params: {
     message.text,
     config as OpenClawConfig,
   );
+  const commandBypassNeedsAllowFrom =
+    security.commandBypass.requireAllowFrom && hasControlCommand;
+  const commandBypassCanSkipMention = !(
+    security.commandBypass.requireMentionForCommands &&
+    requireMention &&
+    hasControlCommand
+  );
 
   const commandGate = resolveControlCommandGate({
-    useAccessGroups: config.commands?.useAccessGroups !== false,
+    useAccessGroups:
+      config.commands?.useAccessGroups !== false || commandBypassNeedsAllowFrom,
     authorizers: [{ configured: allowFrom.length > 0, allowed: senderAllowed }],
     allowTextCommands,
     hasControlCommand,
@@ -246,8 +256,10 @@ export async function handleGroupMeInbound(params: {
     wasMentioned,
     hasAnyMention: false,
     allowTextCommands,
-    hasControlCommand,
-    commandAuthorized: commandGate.commandAuthorized,
+    hasControlCommand: commandBypassCanSkipMention ? hasControlCommand : false,
+    commandAuthorized: commandBypassCanSkipMention
+      ? commandGate.commandAuthorized
+      : false,
   });
 
   const imageUrls = extractImageUrls(message.attachments);

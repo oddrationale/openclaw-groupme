@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { ChannelOnboardingAdapter } from "openclaw/plugin-sdk";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
@@ -56,6 +57,12 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     });
 
     const configured = account.configured;
+    const callbackTokenConfigured = Boolean(
+      account.config.security?.callbackAuth?.token?.trim(),
+    );
+    const expectedGroupIdConfigured = Boolean(
+      account.config.security?.groupBinding?.expectedGroupId?.trim(),
+    );
     return {
       channel: "groupme",
       configured,
@@ -64,6 +71,12 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         account.config.accessToken?.trim()
           ? "Access token configured"
           : "Access token missing (needed for image uploads)",
+        callbackTokenConfigured
+          ? "Webhook callback token configured"
+          : "Webhook callback token missing",
+        expectedGroupIdConfigured
+          ? "Group binding configured"
+          : "Group binding expectedGroupId missing",
       ],
       selectionHint: configured ? "configured" : "needs bot ID",
       quickstartScore: configured ? 1 : 0,
@@ -105,9 +118,26 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const callbackPath = (
       await prompter.text({
         message: "Webhook path",
-        initialValue: "/groupme",
+        initialValue: `/groupme/${randomBytes(8).toString("hex")}`,
         validate: (value) =>
           value.trim().startsWith("/") ? undefined : "Path must start with /",
+      })
+    ).trim();
+    const callbackToken = (
+      await prompter.text({
+        message: "Webhook callback token",
+        initialValue: randomBytes(32).toString("hex"),
+        validate: (value) =>
+          value.trim().length >= 16
+            ? undefined
+            : "Use a high-entropy token (at least 16 characters)",
+      })
+    ).trim();
+    const expectedGroupId = (
+      await prompter.text({
+        message: "Expected Group ID",
+        validate: (value) =>
+          value.trim() ? undefined : "Expected Group ID is required",
       })
     ).trim();
 
@@ -125,13 +155,57 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         botName,
         callbackPath,
         requireMention,
+        security: {
+          callbackAuth: {
+            token: callbackToken,
+            tokenLocation: "query",
+            queryKey: "k",
+            rejectStatus: 404,
+          },
+          groupBinding: {
+            expectedGroupId,
+          },
+          replay: {
+            enabled: true,
+            ttlSeconds: 600,
+            maxEntries: 10_000,
+          },
+          rateLimit: {
+            enabled: true,
+            windowMs: 60_000,
+            maxRequestsPerIp: 120,
+            maxRequestsPerSender: 60,
+            maxConcurrent: 8,
+          },
+          media: {
+            allowPrivateNetworks: false,
+            maxDownloadBytes: 15 * 1024 * 1024,
+            requestTimeoutMs: 10_000,
+            allowedMimePrefixes: ["image/"],
+          },
+          logging: {
+            redactSecrets: true,
+            logRejectedRequests: true,
+          },
+          commandBypass: {
+            requireAllowFrom: true,
+            requireMentionForCommands: false,
+          },
+          proxy: {
+            enabled: false,
+            trustedProxyCidrs: ["127.0.0.1/32", "::1/128"],
+            allowedPublicHosts: [],
+            requireHttpsProto: false,
+            rejectStatus: 403,
+          },
+        },
       },
     });
 
     await prompter.note(
       [
         "Next steps:",
-        `1. Set GroupMe callback URL to https://<your-domain>${callbackPath}`,
+        `1. Set GroupMe callback URL to https://<your-domain>${callbackPath}?k=${callbackToken}`,
         "2. Restart gateway",
         "3. Send a message in the group to test",
       ].join("\n"),

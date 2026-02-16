@@ -26,6 +26,7 @@ import {
 } from "./normalize.js";
 import { groupmeOnboardingAdapter } from "./onboarding.js";
 import { getGroupMeRuntime } from "./runtime.js";
+import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
 import {
   GROUPME_MAX_TEXT_LENGTH,
   sendGroupMeMedia,
@@ -33,6 +34,34 @@ import {
 } from "./send.js";
 
 const CHANNEL_ID = "groupme" as const;
+
+function normalizeCallbackPath(raw: string | undefined): string {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) {
+    return "/groupme";
+  }
+  try {
+    const parsed = new URL(trimmed, "http://localhost");
+    return parsed.pathname || "/groupme";
+  } catch {
+    const noQuery = trimmed.split("?")[0] ?? trimmed;
+    if (!noQuery) {
+      return "/groupme";
+    }
+    return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
+  }
+}
+
+function redactWebhookPath(
+  account: ResolvedGroupMeAccount,
+  callbackPath: string | undefined,
+): string {
+  const security = resolveGroupMeSecurity(account.config);
+  if (!security.logging.redactSecrets) {
+    return normalizeCallbackPath(callbackPath);
+  }
+  return redactCallbackUrl(normalizeCallbackPath(callbackPath), security);
+}
 
 const meta = {
   id: CHANNEL_ID,
@@ -91,6 +120,7 @@ export const groupmePlugin: ChannelPlugin<
           "allowFrom",
           "textChunkLimit",
           "responsePrefix",
+          "security",
         ],
       }),
     isConfigured: (account) => account.configured,
@@ -100,7 +130,7 @@ export const groupmePlugin: ChannelPlugin<
       enabled: account.enabled,
       configured: account.configured,
       botId: account.botId ? "***" : "",
-      callbackPath: account.config.callbackPath,
+      callbackPath: redactWebhookPath(account, account.config.callbackPath),
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
       (
@@ -244,7 +274,7 @@ export const groupmePlugin: ChannelPlugin<
       configured: account.configured,
       botId: account.botId ? "***" : "",
       tokenSource: account.accessToken ? "configured" : "none",
-      webhookPath: account.config.callbackPath ?? "/groupme",
+      webhookPath: redactWebhookPath(account, account.config.callbackPath),
       running: runtime?.running ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,
       lastStopAt: runtime?.lastStopAt ?? null,
@@ -263,7 +293,8 @@ export const groupmePlugin: ChannelPlugin<
         );
       }
 
-      const callbackPath = account.config.callbackPath?.trim() || "/groupme";
+      const callbackPath = normalizeCallbackPath(account.config.callbackPath);
+      const redactedCallbackPath = redactWebhookPath(account, callbackPath);
       const unregister = registerPluginHttpRoute({
         path: callbackPath,
         fallbackPath: "/groupme",
@@ -283,13 +314,13 @@ export const groupmePlugin: ChannelPlugin<
         accountId: account.accountId,
         running: true,
         mode: "webhook",
-        webhookPath: callbackPath,
+        webhookPath: redactedCallbackPath,
         lastStartAt: Date.now(),
         lastError: null,
       });
 
       ctx.log?.info(
-        `[${account.accountId}] GroupMe webhook listening on ${callbackPath}`,
+        `[${account.accountId}] GroupMe webhook listening on ${redactedCallbackPath}`,
       );
 
       if (ctx.abortSignal.aborted) {
