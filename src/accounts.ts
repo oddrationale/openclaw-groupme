@@ -14,6 +14,7 @@ const ENV_ACCESS_TOKEN = "GROUPME_ACCESS_TOKEN";
 const ENV_BOT_NAME = "GROUPME_BOT_NAME";
 const ENV_CALLBACK_URL = "GROUPME_CALLBACK_URL";
 const ENV_GROUP_ID = "GROUPME_GROUP_ID";
+const ENV_PUBLIC_DOMAIN = "GROUPME_PUBLIC_DOMAIN";
 
 export function readTrimmed(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -141,6 +142,12 @@ export function resolveGroupMeAccount(params: {
       ? readTrimmed(process.env[ENV_CALLBACK_URL])
       : undefined) ||
     undefined;
+  const publicDomain =
+    readTrimmed(merged.publicDomain) ||
+    (isDefaultAccount
+      ? readTrimmed(process.env[ENV_PUBLIC_DOMAIN])
+      : undefined) ||
+    undefined;
 
   const config: GroupMeAccountConfig = {
     ...merged,
@@ -148,6 +155,7 @@ export function resolveGroupMeAccount(params: {
     accessToken,
     botName,
     groupId,
+    publicDomain,
     callbackUrl,
   };
 

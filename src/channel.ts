@@ -197,6 +197,7 @@ export const groupmePlugin: ChannelPlugin<
           "accessToken",
           "botName",
           "groupId",
+          "publicDomain",
           "callbackUrl",
           "mentionPatterns",
           "requireMention",
@@ -214,6 +215,7 @@ export const groupmePlugin: ChannelPlugin<
       enabled: account.enabled,
       configured: account.configured,
       botId: account.botId ? "***" : "",
+      publicDomain: account.config.publicDomain ?? "",
       callbackUrl: redactWebhookPath(account, account.config.callbackUrl),
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>

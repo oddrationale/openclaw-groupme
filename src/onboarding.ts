@@ -67,6 +67,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     const configured = account.configured;
     const callbackUrlConfigured = Boolean(account.config.callbackUrl?.trim());
     const groupIdConfigured = Boolean(account.config.groupId?.trim());
+    const publicDomainConfigured = Boolean(account.config.publicDomain?.trim());
 
     return {
       channel: "groupme",
@@ -79,6 +80,9 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         callbackUrlConfigured
           ? "Webhook callback URL configured"
           : "Webhook callback URL missing",
+        publicDomainConfigured
+          ? "Public domain configured"
+          : "Public domain missing",
         groupIdConfigured ? "Group ID configured" : "Group ID missing",
       ],
       selectionHint: configured ? "configured" : "needs access token",
@@ -140,6 +144,39 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       message: "Require mention to respond?",
       initialValue: true,
     });
+    const publicDomainRaw = (
+      await prompter.text({
+        message: "Public domain (must be reachable — GroupMe will ping it)",
+        validate: (value) => {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            return "Public domain is required";
+          }
+          const normalized = trimmed
+            .replace(/^https?:\/\//, "")
+            .replace(/\/+$/, "");
+          if (!normalized) {
+            return "Public domain is required";
+          }
+          return undefined;
+        },
+      })
+    ).trim();
+    let publicDomain: string;
+    const trimmedPublicDomain = publicDomainRaw.trim();
+    try {
+      if (/^https?:\/\//i.test(trimmedPublicDomain)) {
+        const url = new URL(trimmedPublicDomain);
+        publicDomain = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+      } else {
+        const withoutLeadingSlashes = trimmedPublicDomain.replace(/^\/+/, "");
+        publicDomain = withoutLeadingSlashes.split(/[\/?#]/, 1)[0];
+      }
+    } catch {
+      // Fallback: best-effort stripping of scheme and any path/query/fragment
+      const noScheme = trimmedPublicDomain.replace(/^https?:\/\//i, "");
+      publicDomain = noScheme.split(/[\/?#]/, 1)[0];
+    }
 
     const pathSegment = randomBytes(8).toString("hex");
     const callbackToken = randomBytes(32).toString("hex");
@@ -156,9 +193,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         accessToken,
         name: botName,
         groupId,
-        // GroupMe requires a full URL at create-time. Use a stable, reachable
-        // placeholder host; users set their real public callback URL next.
-        callbackUrl: "https://example.com",
+        callbackUrl: `https://${publicDomain}${callbackUrl}`,
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");
@@ -187,6 +222,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         accessToken,
         botId,
         groupId,
+        publicDomain,
         callbackUrl,
         requireMention,
         security: {
@@ -230,9 +266,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
     await prompter.note(
       [
         "Next steps:",
-        `1. Set your GroupMe bot's callback URL to: https://<your-domain>${callbackUrl}`,
-        "2. Restart the gateway: openclaw gateway restart",
-        "3. Send a message in the group to test",
+        "1. Restart the gateway: openclaw gateway restart",
+        "2. Send a message in the group to test",
       ].join("\n"),
       "GroupMe next steps",
     );

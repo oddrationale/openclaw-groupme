@@ -78,6 +78,7 @@ export const GroupMeAccountSchemaBase = z
     accessToken: z.string().optional(),
     botName: z.string().optional(),
     groupId: z.string().optional(),
+    publicDomain: z.string().optional(),
     callbackUrl: z.string().optional(),
     mentionPatterns: z.array(z.string()).optional(),
     requireMention: z.boolean().optional().default(true),
