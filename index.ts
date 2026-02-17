@@ -4,7 +4,7 @@ import { groupmePlugin } from "./src/channel.js";
 import { setGroupMeRuntime } from "./src/runtime.js";
 
 const plugin = {
-  id: "openclaw-groupme",
+  id: "groupme",
   name: "GroupMe",
   description: "GroupMe channel plugin",
   configSchema: emptyPluginConfigSchema(),
