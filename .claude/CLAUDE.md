@@ -65,6 +65,14 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 - **Tests that use `vi.mock()` must mock the `src/` path** — e.g., `vi.mock("../src/runtime.js", ...)`
 - **`FetchLike` is defined as an explicit function signature**, not `typeof fetch` (newer Node types add static properties to `fetch` that break assignability)
 
+## Reference Docs
+
+`docs/references/` contains local copies of GroupMe's developer documentation. Consult these when working on API integration code (e.g., `src/send.ts`, `src/accounts.ts`) rather than guessing endpoint details:
+
+- **`groupme-api-reference.md`** — Full REST API reference (groups, members, messages, bots, etc.). Use when adding or modifying API calls.
+- **`groupme-image-service-reference.md`** — Image Service upload/download API. Use when working on media handling in `src/send.ts`.
+- **`groupme-bot-tutorial.md`** — Bot registration, callback setup, and posting tutorial. Use for understanding bot lifecycle and webhook configuration.
+
 ## Dependencies
 
 - **`zod`** (runtime) — config schema validation
