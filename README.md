@@ -131,17 +131,21 @@ openclaw gateway restart
 
 If you prefer editing config files directly, here's what a complete setup looks like:
 
-```yaml
-channels:
-  groupme:
-    enabled: true
-    botName: "openclaw"
-    accessToken: "YOUR_GROUPME_ACCESS_TOKEN"
-    botId: "YOUR_GROUPME_BOT_ID"
-    groupId: "YOUR_GROUPME_GROUP_ID"
-    publicDomain: "bot.example.com"
-    callbackUrl: "/groupme/e60b3e59da98950f?k=YOUR_SECRET_TOKEN"
-    requireMention: true
+```json
+{
+  "channels": {
+    "groupme": {
+      "enabled": true,
+      "botName": "openclaw",
+      "accessToken": "YOUR_GROUPME_ACCESS_TOKEN",
+      "botId": "YOUR_GROUPME_BOT_ID",
+      "groupId": "YOUR_GROUPME_GROUP_ID",
+      "publicDomain": "bot.example.com",
+      "callbackUrl": "/groupme/e60b3e59da98950f?k=YOUR_SECRET_TOKEN",
+      "requireMention": true
+    }
+  }
+}
 ```
 
 ## Response Modes
@@ -150,21 +154,29 @@ channels:
 
 The bot replies to every message in the group. Simple and direct.
 
-```yaml
-channels:
-  groupme:
-    requireMention: false
+```json
+{
+  "channels": {
+    "groupme": {
+      "requireMention": false
+    }
+  }
+}
 ```
 
 ### Mention only (`requireMention: true`, default)
 
 The bot only replies when someone mentions it by name. It still passively buffers recent messages so it has context when it does respond.
 
-```yaml
-channels:
-  groupme:
-    requireMention: true
-    historyLimit: 30
+```json
+{
+  "channels": {
+    "groupme": {
+      "requireMention": true,
+      "historyLimit": 30
+    }
+  }
+}
 ```
 
 Set `historyLimit: 0` to disable history buffering entirely.
@@ -173,14 +185,19 @@ Set `historyLimit: 0` to disable history buffering entirely.
 
 GroupMe bots don't support native @mention entities, so this plugin uses text matching. By default, it matches the `botName` in the message text. You can add custom patterns too:
 
-```yaml
-channels:
-  groupme:
-    botName: "openclaw"
-    mentionPatterns:
-      - "@openclaw"
-      - "hey openclaw"
-      - "oc"
+```json
+{
+  "channels": {
+    "groupme": {
+      "botName": "openclaw",
+      "mentionPatterns": [
+        "@openclaw",
+        "hey openclaw",
+        "oc"
+      ]
+    }
+  }
+}
 ```
 
 Patterns are case-insensitive regular expressions, so you can get creative with matching.
@@ -215,16 +232,23 @@ When the bot sends image replies, outbound media fetches are hardened with:
 
 You only need a `security` block if you want to override the defaults. Just include the fields you want to change:
 
-```yaml
-channels:
-  groupme:
-    security:
-      rateLimit:
-        maxRequestsPerIp: 60
-      proxy:
-        trustedProxyCidrs: ["10.0.0.0/8"]
-        allowedPublicHosts: ["bot.example.com"]
-        requireHttpsProto: true
+```json
+{
+  "channels": {
+    "groupme": {
+      "security": {
+        "rateLimit": {
+          "maxRequestsPerIp": 60
+        },
+        "proxy": {
+          "trustedProxyCidrs": ["10.0.0.0/8"],
+          "allowedPublicHosts": ["bot.example.com"],
+          "requireHttpsProto": true
+        }
+      }
+    }
+  }
+}
 ```
 
 #### Replay Protection
