@@ -174,7 +174,7 @@ async function decideWebhookRequest(params: {
   }
 
   const groupBinding = checkGroupBinding({
-    expectedGroupId: params.security.expectedGroupId,
+    groupId: params.security.groupId,
     inboundGroupId: message.groupId,
   });
   if (!groupBinding.ok) {

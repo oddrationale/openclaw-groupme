@@ -19,7 +19,7 @@ const IPV6_MAX_CIDR_PREFIX = 128;
 export type ResolvedGroupMeSecurity = {
   callbackToken: string;
   callbackRejectStatus: 404;
-  expectedGroupId: string;
+  groupId: string;
   replay: {
     enabled: boolean;
     ttlSeconds: number;
@@ -246,7 +246,7 @@ export function resolveGroupMeSecurity(
 ): ResolvedGroupMeSecurity {
   const security = (accountConfig.security ?? {}) as GroupMeSecurityConfig;
   const callbackToken = extractCallbackToken(accountConfig.callbackUrl);
-  const expectedGroupId = readTrimmed(accountConfig.groupId) ?? "";
+  const groupId = readTrimmed(accountConfig.groupId) ?? "";
 
   const allowedMimePrefixes = Array.isArray(security.media?.allowedMimePrefixes)
     ? security.media.allowedMimePrefixes
@@ -267,7 +267,7 @@ export function resolveGroupMeSecurity(
   return {
     callbackToken,
     callbackRejectStatus: 404,
-    expectedGroupId,
+    groupId,
     replay: {
       enabled: security.replay?.enabled !== false,
       ttlSeconds: positiveIntOrDefault(security.replay?.ttlSeconds, 600),
@@ -336,13 +336,10 @@ export function verifyCallbackAuth(params: {
 }
 
 export function checkGroupBinding(params: {
-  expectedGroupId: string;
+  groupId: string;
   inboundGroupId: string;
 }): { ok: true } | { ok: false; reason: "mismatch" } {
-  if (!params.expectedGroupId) {
-    return { ok: true };
-  }
-  if (params.expectedGroupId !== params.inboundGroupId) {
+  if (params.groupId !== params.inboundGroupId) {
     return { ok: false, reason: "mismatch" };
   }
   return { ok: true };
