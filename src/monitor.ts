@@ -143,13 +143,16 @@ async function decideWebhookRequest(params: {
     emptyObjectOnEmpty: false,
   });
   if (!body.ok) {
+    let status: number;
+    if (body.code === "PAYLOAD_TOO_LARGE") {
+      status = 413;
+    } else if (body.code === "REQUEST_BODY_TIMEOUT") {
+      status = 408;
+    } else {
+      status = 400;
+    }
     return rejectDecision({
-      status:
-        body.code === "PAYLOAD_TOO_LARGE"
-          ? 413
-          : body.code === "REQUEST_BODY_TIMEOUT"
-            ? 408
-            : 400,
+      status,
       reason: `body_${body.code.toLowerCase()}`,
       logLevel: "debug",
     });

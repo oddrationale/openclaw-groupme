@@ -163,18 +163,17 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
       })
     ).trim();
     let publicDomain: string;
-    const trimmedPublicDomain = publicDomainRaw.trim();
     try {
-      if (/^https?:\/\//i.test(trimmedPublicDomain)) {
-        const url = new URL(trimmedPublicDomain);
+      if (/^https?:\/\//i.test(publicDomainRaw)) {
+        const url = new URL(publicDomainRaw);
         publicDomain = url.port ? `${url.hostname}:${url.port}` : url.hostname;
       } else {
-        const withoutLeadingSlashes = trimmedPublicDomain.replace(/^\/+/, "");
+        const withoutLeadingSlashes = publicDomainRaw.replace(/^\/+/, "");
         publicDomain = withoutLeadingSlashes.split(/[\/?#]/, 1)[0];
       }
     } catch {
       // Fallback: best-effort stripping of scheme and any path/query/fragment
-      const noScheme = trimmedPublicDomain.replace(/^https?:\/\//i, "");
+      const noScheme = publicDomainRaw.replace(/^https?:\/\//i, "");
       publicDomain = noScheme.split(/[\/?#]/, 1)[0];
     }
 

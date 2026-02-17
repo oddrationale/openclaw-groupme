@@ -51,7 +51,7 @@ function parseNumberMatrix(value: unknown): number[][] {
     const parsedRow: number[] = [];
     for (const cell of row) {
       const num = readNumber(cell);
-      if (typeof num !== "number") {
+      if (num === undefined) {
         continue;
       }
       parsedRow.push(num);
@@ -131,15 +131,9 @@ function parseAttachments(value: unknown): GroupMeAttachment[] {
   if (!Array.isArray(value)) {
     return [];
   }
-
-  const attachments: GroupMeAttachment[] = [];
-  for (const entry of value) {
-    const parsed = parseAttachment(entry);
-    if (parsed) {
-      attachments.push(parsed);
-    }
-  }
-  return attachments;
+  return value
+    .map((entry) => parseAttachment(entry))
+    .filter((parsed): parsed is GroupMeAttachment => parsed !== null);
 }
 
 export function parseGroupMeCallback(

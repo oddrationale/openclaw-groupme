@@ -78,17 +78,13 @@ function mergeAccountConfig(
 }
 
 export function listGroupMeAccountIds(cfg: CoreConfig): string[] {
-  const ids = new Set<string>([DEFAULT_ACCOUNT_ID]);
-  for (const id of listConfiguredAccountIds(cfg)) {
-    ids.add(id);
-  }
-
-  const ordered = [...ids].toSorted((a, b) => a.localeCompare(b));
-  if (ordered[0] !== DEFAULT_ACCOUNT_ID) {
-    ordered.unshift(DEFAULT_ACCOUNT_ID);
-    return Array.from(new Set(ordered));
-  }
-  return ordered;
+  const sorted = listConfiguredAccountIds(cfg).toSorted((a, b) =>
+    a.localeCompare(b),
+  );
+  return [
+    DEFAULT_ACCOUNT_ID,
+    ...sorted.filter((id) => id !== DEFAULT_ACCOUNT_ID),
+  ];
 }
 
 export function resolveDefaultGroupMeAccountId(cfg: CoreConfig): string {

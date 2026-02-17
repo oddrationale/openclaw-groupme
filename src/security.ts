@@ -74,9 +74,10 @@ export type GroupMeProxyValidation =
     };
 
 function positiveIntOrDefault(value: unknown, fallback: number): number {
-  return Number.isFinite(value) && (value as number) > 0
-    ? Math.floor(value as number)
-    : fallback;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  return fallback;
 }
 
 function normalizeIpCandidate(raw: string): string {

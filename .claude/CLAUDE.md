@@ -57,6 +57,14 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 
 `src/security.ts` exports `resolveGroupMeSecurity()` which merges user config with secure defaults (replay enabled, rate limiting enabled, private networks blocked, secrets redacted).
 
+### Onboarding
+
+`src/onboarding.ts` implements the `ChannelOnboardingAdapter` for interactive bot setup. It uses `src/groupme-api.ts` to call the GroupMe REST API (`fetchGroups`, `createBot`) and guides the user through group selection and bot creation.
+
+### Utilities
+
+`src/normalize.ts` provides ID normalization helpers (`normalizeStringId`, `normalizeGroupMeTarget`, `looksLikeGroupMeTargetId`) used across config resolution and policy matching.
+
 ### Key Patterns
 
 - **All imports use `.js` extensions** — required by Node16 module resolution (`"type": "module"`)
