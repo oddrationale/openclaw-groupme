@@ -7,13 +7,11 @@ import type {
 export type GroupMeAllowFromEntry = string | number;
 
 export type GroupMeReplayConfig = {
-  enabled?: boolean;
   ttlSeconds?: number;
   maxEntries?: number;
 };
 
 export type GroupMeRateLimitConfig = {
-  enabled?: boolean;
   windowMs?: number;
   maxRequestsPerIp?: number;
   maxRequestsPerSender?: number;
@@ -38,7 +36,6 @@ export type GroupMeCommandBypassSecurityConfig = {
 };
 
 export type GroupMeProxySecurityConfig = {
-  enabled?: boolean;
   trustedProxyCidrs?: string[];
   allowedPublicHosts?: string[];
   requireHttpsProto?: boolean;

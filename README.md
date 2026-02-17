@@ -37,7 +37,7 @@ The wizard will:
 - Let you select a group
 - Register a bot automatically
 - Generate a secure callback URL
-- Write config fields (`botId`, `groupId`, `publicDomain`, `callbackUrl`, security defaults)
+- Write config fields (`botId`, `groupId`, `publicDomain`, `callbackUrl`)
 
 4. Restart OpenClaw gateway:
 
@@ -94,35 +94,19 @@ channels:
     publicDomain: "bot.example.com"
     callbackUrl: "/groupme/e60b3e59da98950f?k=YOUR_SECRET"
     requireMention: true
-    historyLimit: 20
+```
+
+Security defaults (replay, rate limiting, media restrictions, logging) are applied automatically.
+To customize security or enable proxy validation, add a `security` block with only the fields you want to override:
+
+```yaml
     security:
-      replay:
-        enabled: true
-        ttlSeconds: 600
-        maxEntries: 10000
       rateLimit:
-        enabled: true
-        windowMs: 60000
-        maxRequestsPerIp: 120
-        maxRequestsPerSender: 60
-        maxConcurrent: 8
-      media:
-        allowPrivateNetworks: false
-        maxDownloadBytes: 15728640
-        requestTimeoutMs: 10000
-        allowedMimePrefixes: ["image/"]
-      logging:
-        redactSecrets: true
-        logRejectedRequests: true
-      commandBypass:
-        requireAllowFrom: true
-        requireMentionForCommands: false
+        maxRequestsPerIp: 60
       proxy:
-        enabled: false
-        trustedProxyCidrs: ["127.0.0.1/32", "::1/128"]
-        allowedPublicHosts: []
-        requireHttpsProto: false
-        rejectStatus: 403
+        trustedProxyCidrs: ["10.0.0.0/8"]
+        allowedPublicHosts: ["bot.example.com"]
+        requireHttpsProto: true
 ```
 
 ## Response modes
@@ -211,12 +195,12 @@ Set the bot callback in GroupMe to:
 
 ### Security config reference
 
+Replay protection and rate limiting are always enabled with safe defaults. Proxy validation is enabled by including a `proxy` block.
+
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `security.replay.enabled` | boolean | `true` | Enable replay dedupe |
 | `security.replay.ttlSeconds` | number | `600` | Replay dedupe TTL |
 | `security.replay.maxEntries` | number | `10000` | Replay cache size bound |
-| `security.rateLimit.enabled` | boolean | `true` | Enable webhook rate limiting |
 | `security.rateLimit.windowMs` | number | `60000` | Sliding window size |
 | `security.rateLimit.maxRequestsPerIp` | number | `120` | Max webhook requests per IP per window |
 | `security.rateLimit.maxRequestsPerSender` | number | `60` | Max webhook requests per sender per window |
@@ -229,7 +213,7 @@ Set the bot callback in GroupMe to:
 | `security.logging.logRejectedRequests` | boolean | `true` | Emit webhook rejection logs |
 | `security.commandBypass.requireAllowFrom` | boolean | `true` | Require `allowFrom` membership for command bypass |
 | `security.commandBypass.requireMentionForCommands` | boolean | `false` | Require mention even for control commands |
-| `security.proxy.enabled` | boolean | `false` | Enable trusted-proxy host/proto/client-IP validation |
+| `security.proxy` | object | — | Include to enable trusted-proxy host/proto/client-IP validation |
 | `security.proxy.trustedProxyCidrs` | string[] | `[]` | Trust forwarded headers only from these CIDRs |
 | `security.proxy.allowedPublicHosts` | string[] | `[]` | Allowed effective public hosts |
 | `security.proxy.requireHttpsProto` | boolean | `false` | Require effective protocol to be `https` |

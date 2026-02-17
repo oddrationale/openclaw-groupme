@@ -93,12 +93,10 @@ function buildAccount(
       callbackUrl: "/groupme?k=secret-token",
       security: {
         replay: {
-          enabled: true,
           ttlSeconds: 600,
           maxEntries: 1000,
         },
         rateLimit: {
-          enabled: true,
           windowMs: 60_000,
           maxRequestsPerIp: 120,
           maxRequestsPerSender: 60,
@@ -287,7 +285,6 @@ describe("createGroupMeWebhookHandler", () => {
         security: {
           ...buildAccount().config.security,
           rateLimit: {
-            enabled: true,
             windowMs: 60_000,
             maxRequestsPerIp: 120,
             maxRequestsPerSender: 1,
@@ -333,7 +330,6 @@ describe("createGroupMeWebhookHandler", () => {
         security: {
           ...buildAccount().config.security,
           proxy: {
-            enabled: true,
             trustedProxyCidrs: ["127.0.0.1/32"],
             allowedPublicHosts: ["bot.example.com"],
             requireHttpsProto: true,
@@ -377,7 +373,6 @@ describe("createGroupMeWebhookHandler", () => {
         security: {
           ...buildAccount().config.security,
           proxy: {
-            enabled: true,
             trustedProxyCidrs: ["127.0.0.1/32"],
             allowedPublicHosts: ["bot.example.com"],
             rejectStatus: 403,
@@ -417,12 +412,10 @@ describe("createGroupMeWebhookHandler", () => {
         security: {
           ...buildAccount().config.security,
           proxy: {
-            enabled: true,
             trustedProxyCidrs: ["203.0.113.9/32"],
             rejectStatus: 403,
           },
           rateLimit: {
-            enabled: true,
             windowMs: 60_000,
             maxRequestsPerIp: 1,
             maxRequestsPerSender: 20,
