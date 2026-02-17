@@ -59,20 +59,20 @@ describe("verifyCallbackAuth", () => {
 });
 
 describe("checkGroupBinding", () => {
-  it("treats binding as disabled when expected group id is not configured", () => {
+  it("rejects when group id is not configured", () => {
     const security = buildSecurity({});
     expect(
       checkGroupBinding({
-        expectedGroupId: security.expectedGroupId,
+        groupId: security.groupId,
         inboundGroupId: "456",
       }),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: false, reason: "mismatch" });
   });
 
-  it("accepts expected group", () => {
+  it("accepts matching group", () => {
     expect(
       checkGroupBinding({
-        expectedGroupId: "123",
+        groupId: "123",
         inboundGroupId: "123",
       }),
     ).toEqual({ ok: true });
@@ -81,19 +81,19 @@ describe("checkGroupBinding", () => {
   it("rejects mismatch", () => {
     expect(
       checkGroupBinding({
-        expectedGroupId: "123",
+        groupId: "123",
         inboundGroupId: "456",
       }),
     ).toEqual({ ok: false, reason: "mismatch" });
   });
 
-  it("accepts when expected group id is missing", () => {
+  it("rejects when group id is empty", () => {
     expect(
       checkGroupBinding({
-        expectedGroupId: "",
+        groupId: "",
         inboundGroupId: "456",
       }),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: false, reason: "mismatch" });
   });
 });
 
