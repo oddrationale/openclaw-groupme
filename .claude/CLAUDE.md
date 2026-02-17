@@ -65,17 +65,6 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 - **Tests that use `vi.mock()` must mock the `src/` path** — e.g., `vi.mock("../src/runtime.js", ...)`
 - **`FetchLike` is defined as an explicit function signature**, not `typeof fetch` (newer Node types add static properties to `fetch` that break assignability)
 
-## Workflow
-
-All commits to `main` must go through a pull request. Every PR must have:
-1. A GitHub issue describing the work
-2. A feature (`feature/`) or fix (`fix/`) branch
-3. A PR that references the issue (e.g., `Fixes #N`)
-
-Use `gh` CLI to create issues and PRs.
-
-When adding or changing user-facing features (new CLI options, config fields, setup methods, etc.), check whether `README.md` needs to be updated to reflect the change.
-
 ## Dependencies
 
 - **`zod`** (runtime) — config schema validation
