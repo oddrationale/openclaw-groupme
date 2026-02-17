@@ -269,12 +269,12 @@ export function resolveGroupMeSecurity(
     callbackRejectStatus: 404,
     groupId,
     replay: {
-      enabled: security.replay?.enabled !== false,
+      enabled: true,
       ttlSeconds: positiveIntOrDefault(security.replay?.ttlSeconds, 600),
       maxEntries: positiveIntOrDefault(security.replay?.maxEntries, 10_000),
     },
     rateLimit: {
-      enabled: security.rateLimit?.enabled !== false,
+      enabled: true,
       windowMs: positiveIntOrDefault(security.rateLimit?.windowMs, 60_000),
       maxRequestsPerIp: positiveIntOrDefault(security.rateLimit?.maxRequestsPerIp, 120),
       maxRequestsPerSender: positiveIntOrDefault(security.rateLimit?.maxRequestsPerSender, 60),
@@ -297,7 +297,7 @@ export function resolveGroupMeSecurity(
         security.commandBypass?.requireMentionForCommands === true,
     },
     proxy: {
-      enabled: security.proxy?.enabled === true,
+      enabled: security.proxy != null,
       trustedProxyCidrs,
       allowedPublicHosts,
       requireHttpsProto: security.proxy?.requireHttpsProto === true,

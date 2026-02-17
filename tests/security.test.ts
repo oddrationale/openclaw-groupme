@@ -140,7 +140,6 @@ describe("validateProxyRequest", () => {
     const security = buildSecurity({
       security: {
         proxy: {
-          enabled: true,
           trustedProxyCidrs: ["127.0.0.1/32"],
           allowedPublicHosts: ["bot.example.com"],
           requireHttpsProto: true,
@@ -173,7 +172,6 @@ describe("validateProxyRequest", () => {
     const security = buildSecurity({
       security: {
         proxy: {
-          enabled: true,
           trustedProxyCidrs: ["127.0.0.1/32"],
           allowedPublicHosts: ["bot.example.com"],
           rejectStatus: 403,
@@ -200,7 +198,6 @@ describe("validateProxyRequest", () => {
     const security = buildSecurity({
       security: {
         proxy: {
-          enabled: true,
           trustedProxyCidrs: ["127.0.0.1/32"],
           requireHttpsProto: true,
           rejectStatus: 400,

@@ -8,7 +8,6 @@ const allowFromEntry = z.union([z.string(), z.number()]);
 
 const GroupMeReplaySchema = z
   .object({
-    enabled: z.boolean().optional().default(true),
     ttlSeconds: z.number().int().positive().optional(),
     maxEntries: z.number().int().positive().optional(),
   })
@@ -16,7 +15,6 @@ const GroupMeReplaySchema = z
 
 const GroupMeRateLimitSchema = z
   .object({
-    enabled: z.boolean().optional().default(true),
     windowMs: z.number().int().positive().optional(),
     maxRequestsPerIp: z.number().int().positive().optional(),
     maxRequestsPerSender: z.number().int().positive().optional(),
@@ -49,7 +47,6 @@ const GroupMeCommandBypassSecuritySchema = z
 
 const GroupMeProxySecuritySchema = z
   .object({
-    enabled: z.boolean().optional().default(false),
     trustedProxyCidrs: z.array(z.string()).optional(),
     allowedPublicHosts: z.array(z.string()).optional(),
     requireHttpsProto: z.boolean().optional().default(false),

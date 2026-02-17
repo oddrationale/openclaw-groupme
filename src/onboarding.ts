@@ -225,41 +225,6 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         publicDomain,
         callbackUrl,
         requireMention,
-        security: {
-          replay: {
-            enabled: true,
-            ttlSeconds: 600,
-            maxEntries: 10_000,
-          },
-          rateLimit: {
-            enabled: true,
-            windowMs: 60_000,
-            maxRequestsPerIp: 120,
-            maxRequestsPerSender: 60,
-            maxConcurrent: 8,
-          },
-          media: {
-            allowPrivateNetworks: false,
-            maxDownloadBytes: 15 * 1024 * 1024,
-            requestTimeoutMs: 10_000,
-            allowedMimePrefixes: ["image/"],
-          },
-          logging: {
-            redactSecrets: true,
-            logRejectedRequests: true,
-          },
-          commandBypass: {
-            requireAllowFrom: true,
-            requireMentionForCommands: false,
-          },
-          proxy: {
-            enabled: false,
-            trustedProxyCidrs: ["127.0.0.1/32", "::1/128"],
-            allowedPublicHosts: [],
-            requireHttpsProto: false,
-            rejectStatus: 403,
-          },
-        },
       },
     });
 
