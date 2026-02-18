@@ -81,6 +81,25 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 - **`groupme-image-service-reference.md`** — Image Service upload/download API. Use when working on media handling in `src/send.ts`.
 - **`groupme-bot-tutorial.md`** — Bot registration, callback setup, and posting tutorial. Use for understanding bot lifecycle and webhook configuration.
 
+## Commit Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). Release Please reads commit messages to determine version bumps and generate changelogs.
+
+**Format:** `<type>: <description>` (lowercase type, imperative description)
+
+| Type | Version bump | Use for |
+|------|-------------|---------|
+| `feat:` | minor (0.x.0) | New features or capabilities |
+| `fix:` | patch (0.0.x) | Bug fixes |
+| `feat!:` or `BREAKING CHANGE:` footer | major (x.0.0) | Breaking API/config changes |
+| `docs:` | none | Documentation only |
+| `ci:` | none | CI/CD workflow changes |
+| `chore:` | none | Maintenance, deps, tooling |
+| `refactor:` | none | Code changes that don't fix bugs or add features |
+| `test:` | none | Adding or updating tests |
+
+Only `feat:`, `fix:`, and breaking changes trigger a release. Use the appropriate type so the changelog and version bump are correct.
+
 ## Dependencies
 
 - **`zod`** (runtime) — config schema validation
