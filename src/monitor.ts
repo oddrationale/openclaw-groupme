@@ -226,6 +226,11 @@ export function createGroupMeWebhookHandler(
     params.account.config.historyLimit,
   );
   const security = resolveGroupMeSecurity(params.account.config);
+  if (!security.groupId) {
+    params.runtime.error?.(
+      "groupme: WARNING — no groupId configured; all inbound messages will be rejected. Set groupId in your account config.",
+    );
+  }
   const replayCache = new GroupMeReplayCache({
     ttlSeconds: security.replay.ttlSeconds,
     maxEntries: security.replay.maxEntries,

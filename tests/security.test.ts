@@ -46,6 +46,17 @@ describe("verifyCallbackAuth", () => {
     expect(result).toEqual({ ok: false, reason: "mismatch" });
   });
 
+  it("rejects token with different length", () => {
+    const security = buildSecurity({
+      callbackUrl: "/groupme/abc?k=active",
+    });
+    const result = verifyCallbackAuth({
+      url: new URL("http://localhost/groupme?k=longer-token-value"),
+      security,
+    });
+    expect(result).toEqual({ ok: false, reason: "mismatch" });
+  });
+
   it("treats callback auth as disabled when callbackUrl token is missing", () => {
     const security = buildSecurity({
       callbackUrl: "/groupme/abc",
