@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/oddrationale/openclaw-groupme/compare/v0.3.0...v0.3.1) (2026-02-21)
+
+
+### Bug Fixes
+
+* eliminate timing side-channel in token comparison and warn on missing groupId ([721a20a](https://github.com/oddrationale/openclaw-groupme/commit/721a20afd6fd199c3a0f4d40d0b62e9518d8cb0c))
+
 ## [0.3.0](https://github.com/oddrationale/openclaw-groupme/compare/v0.2.0...v0.3.0) (2026-02-18)
 
 
