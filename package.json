@@ -36,12 +36,12 @@
     "zod": ">=4.3.6 <5"
   },
   "devDependencies": {
-    "openclaw": ">=2026.2.14",
+    "openclaw": ">=2026.2.26",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.2.14"
+    "openclaw": ">=2026.2.26"
   },
   "peerDependenciesMeta": {
     "openclaw": {

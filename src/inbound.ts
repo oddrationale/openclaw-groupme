@@ -365,6 +365,7 @@ export async function handleGroupMeInbound(params: {
     Timestamp: inboundTimestamp,
     OriginatingChannel: CHANNEL_ID,
     OriginatingTo: `groupme:group:${message.groupId}`,
+    GroupSpace: message.groupId,
     CommandAuthorized: commandGate.commandAuthorized,
     MediaUrl: imageUrls[0],
     MediaUrls: imageUrls.length > 0 ? imageUrls : undefined,

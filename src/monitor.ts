@@ -24,6 +24,11 @@ import type {
   WebhookDecision,
 } from "./types.js";
 
+// GroupMe callbacks are small JSON payloads; use tighter limits than the SDK
+// defaults (DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1 MB, DEFAULT_WEBHOOK_BODY_TIMEOUT_MS = 30 s).
+const GROUPME_WEBHOOK_MAX_BODY_BYTES = 64 * 1024;
+const GROUPME_WEBHOOK_BODY_TIMEOUT_MS = 15_000;
+
 export type GroupMeWebhookHandlerParams = {
   account: ResolvedGroupMeAccount;
   config: CoreConfig;
@@ -138,8 +143,8 @@ async function decideWebhookRequest(params: {
   }
 
   const body = await readJsonBodyWithLimit(params.req, {
-    maxBytes: 64 * 1024,
-    timeoutMs: 15_000,
+    maxBytes: GROUPME_WEBHOOK_MAX_BODY_BYTES,
+    timeoutMs: GROUPME_WEBHOOK_BODY_TIMEOUT_MS,
     emptyObjectOnEmpty: false,
   });
   if (!body.ok) {
