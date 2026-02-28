@@ -376,6 +376,18 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
         initialValue: true,
       });
 
+      if (!registerNew) {
+        const newBotId = (
+          await prompter.text({
+            message:
+              "Bot ID for the new group (existing bot won't work in a different group)",
+            validate: (value) =>
+              value.trim() ? undefined : "Bot ID is required",
+          })
+        ).trim();
+        updates.botId = newBotId;
+      }
+
       if (registerNew) {
         const botName = account.config.botName || "openclaw";
         let publicDomain = account.config.publicDomain;
@@ -399,7 +411,11 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
           publicDomain = parsePublicDomain(domainRaw);
           updates.publicDomain = publicDomain;
         }
-        const rawCallbackUrl = account.config.callbackUrl || generateCallbackUrl();
+        let rawCallbackUrl = account.config.callbackUrl;
+        if (!rawCallbackUrl) {
+          rawCallbackUrl = generateCallbackUrl();
+          updates.callbackUrl = rawCallbackUrl;
+        }
         const parsedCallback = new URL(rawCallbackUrl, "http://localhost");
         const callbackPath = `${parsedCallback.pathname}${parsedCallback.search}`;
 

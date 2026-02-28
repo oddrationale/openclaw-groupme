@@ -4,8 +4,6 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import {
   readJsonBodyWithLimit,
   requestBodyErrorToText,
-  DEFAULT_WEBHOOK_MAX_BODY_BYTES,
-  DEFAULT_WEBHOOK_BODY_TIMEOUT_MS,
 } from "openclaw/plugin-sdk";
 import { resolveGroupMeHistoryLimit } from "./history.js";
 import { handleGroupMeInbound } from "./inbound.js";
@@ -26,8 +24,8 @@ import type {
   WebhookDecision,
 } from "./types.js";
 
-// GroupMe callbacks are small JSON payloads; use tighter limits than the
-// SDK defaults (1 MB / 30 s) to reject oversized or slow requests early.
+// GroupMe callbacks are small JSON payloads; use tighter limits than the SDK
+// defaults (DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1 MB, DEFAULT_WEBHOOK_BODY_TIMEOUT_MS = 30 s).
 const GROUPME_WEBHOOK_MAX_BODY_BYTES = 64 * 1024;
 const GROUPME_WEBHOOK_BODY_TIMEOUT_MS = 15_000;
 

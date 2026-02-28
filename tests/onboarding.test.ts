@@ -291,7 +291,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     expect(createBotMock).toHaveBeenCalledTimes(1);
   });
 
-  it("changes group without re-registering bot", async () => {
+  it("changes group without re-registering bot prompts for botId", async () => {
     fetchGroupsMock.mockResolvedValueOnce([
       group("g1", "Family"),
       group("g2", "Work"),
@@ -302,6 +302,9 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
       .mockResolvedValueOnce("change_group")
       .mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "bot-for-g2",
+    );
 
     const result =
       await groupmeOnboardingAdapter.configureWhenConfigured!(
@@ -312,7 +315,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     const { cfg } = result as { cfg: OpenClawConfig };
     const section = cfg.channels?.groupme as Record<string, unknown>;
     expect(section.groupId).toBe("g2");
-    expect(section.botId).toBe("bot-existing");
+    expect(section.botId).toBe("bot-for-g2");
     expect(createBotMock).not.toHaveBeenCalled();
   });
 
@@ -368,6 +371,59 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     expect(createBotMock).toHaveBeenCalledWith(
       expect.objectContaining({
         callbackUrl: expect.stringContaining("https://prompted.example.com/"),
+      }),
+    );
+  });
+
+  it("persists generated callbackUrl when missing during change_group bot registration", async () => {
+    const noCallbackCfg = {
+      channels: {
+        groupme: {
+          enabled: true,
+          botId: "bot-existing",
+          accessToken: "token-existing",
+          botName: "oddclaw",
+          groupId: "g1",
+          publicDomain: "bot.example.com",
+          requireMention: true,
+        },
+      },
+    } as OpenClawConfig;
+
+    fetchGroupsMock.mockResolvedValueOnce([
+      group("g1", "Family"),
+      group("g2", "Work"),
+    ]);
+    createBotMock.mockResolvedValueOnce({
+      bot_id: "bot-new",
+      group_id: "g2",
+      name: "oddclaw",
+      avatar_url: null,
+      callback_url: "https://bot.example.com/groupme/test",
+      dm_notification: false,
+      active: true,
+    });
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("change_group")
+      .mockResolvedValueOnce("g2");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter, noCallbackCfg),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.callbackUrl).toMatch(
+      /^\/groupme\/[0-9a-f]{16}\?k=[0-9a-f]{64}$/,
+    );
+    expect(createBotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackUrl: expect.stringContaining("https://bot.example.com/groupme/"),
       }),
     );
   });
