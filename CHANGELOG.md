@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/oddrationale/openclaw-groupme/compare/v0.3.0...v1.0.0) (2026-02-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Minimum openclaw peer dependency raised to >=2026.2.26.
+
+### Features
+
+* adopt OpenClaw v2026.2.26 SDK features ([#39](https://github.com/oddrationale/openclaw-groupme/issues/39)) ([16a47d9](https://github.com/oddrationale/openclaw-groupme/commit/16a47d949a0b59b3e61b2fa6964418c7a028b728))
+
+
+### Bug Fixes
+
+* eliminate timing side-channel in token comparison and warn on missing groupId ([721a20a](https://github.com/oddrationale/openclaw-groupme/commit/721a20afd6fd199c3a0f4d40d0b62e9518d8cb0c))
+
 ## [0.3.0](https://github.com/oddrationale/openclaw-groupme/compare/v0.2.0...v0.3.0) (2026-02-18)
 
 
