@@ -148,6 +148,20 @@ If you prefer editing config files directly, here's what a complete setup looks 
 }
 ```
 
+## Reconfiguring an Existing Setup
+
+If GroupMe is already configured and you run `openclaw configure` again, you'll get a menu of targeted actions instead of repeating the full wizard:
+
+- **Skip** — leave everything as-is
+- **Rotate access token** — replace the stored access token (validates the new token by fetching your groups)
+- **Change group** — pick a different GroupMe group and optionally register a new bot in it
+- **Regenerate callback URL** — create a new random callback path and secret token (you'll need to update the bot's callback URL in GroupMe afterward)
+- **Toggle requireMention** — flip mention-required mode on or off
+- **Update public domain** — change the public domain used for callback URLs
+- **Full re-setup** — start from scratch with the interactive wizard
+
+This lets you make quick adjustments — like rotating a leaked token or moving the bot to a different group — without tearing down the whole config.
+
 ## Response Modes
 
 ### Always respond (`requireMention: false`)
@@ -349,7 +363,18 @@ https://bot.example.com/groupme/e60b3e59da98950f?k=775c9958da544c73e6d97c04f8849
 
 ## Notes and Limitations
 
-- **Group chats only** — no DM support (GroupMe Bot API limitation)
+### GroupMe Bot API Constraints
+
+GroupMe bots are intentionally limited compared to full user accounts. These constraints come from the GroupMe Bot API itself, not from this plugin:
+
+- **Group chats only** — bots cannot send or receive direct messages. Each bot is bound to a single group.
+- **One group per bot** — a bot registration is tied to exactly one group. To serve multiple groups, register a separate bot (and account) for each.
+- **No message history** — bots only see messages as they arrive via the callback webhook. They cannot fetch past messages from the group. (This plugin buffers recent messages locally for context when `requireMention` is enabled.)
+- **No reactions** — bots cannot like or unlike messages.
+- **Text and images only** — bots can post text and attach a single image per message. Other attachment types (video, files, locations) are not supported.
+
+### Plugin-Specific Notes
+
 - Bot and system messages from GroupMe are automatically ignored
 - GroupMe has a 1000-character limit per message — longer replies are chunked automatically
 - Image replies require `accessToken` so the plugin can upload images to GroupMe's Image Service
