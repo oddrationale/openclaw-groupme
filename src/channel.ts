@@ -164,6 +164,15 @@ export const groupmePlugin: ChannelPlugin<
         },
       };
     },
+
+    resolveBindingAccountId: ({ cfg, accountId }) => {
+      if (accountId) return accountId;
+      const ids = listGroupMeAccountIds(cfg as CoreConfig);
+      if (ids.length <= 1) return DEFAULT_ACCOUNT_ID;
+      const section = (cfg as CoreConfig).channels?.groupme;
+      const explicitDefault = section?.defaultAccount?.trim();
+      return explicitDefault ? resolveDefaultGroupMeAccountId(cfg as CoreConfig) : undefined;
+    },
   } satisfies ChannelSetupAdapter,
   capabilities: {
     chatTypes: ["group"],

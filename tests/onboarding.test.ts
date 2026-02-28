@@ -1,7 +1,7 @@
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { RuntimeEnv, WizardPrompter } from "openclaw/plugin-sdk";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchGroupsMock = vi.hoisted(() => vi.fn());
 const createBotMock = vi.hoisted(() => vi.fn());
@@ -162,5 +162,332 @@ describe("groupmeOnboardingAdapter.configure", () => {
       "Could not fetch groups. Check your access token and try again.",
       "GroupMe setup failed",
     );
+  });
+});
+
+function makeConfiguredConfig(): OpenClawConfig {
+  return {
+    channels: {
+      groupme: {
+        enabled: true,
+        botId: "bot-existing",
+        accessToken: "token-existing",
+        botName: "oddclaw",
+        groupId: "g1",
+        publicDomain: "bot.example.com",
+        callbackUrl: "/groupme/abc123?k=secret",
+        requireMention: true,
+      },
+    },
+  } as OpenClawConfig;
+}
+
+function configureWhenConfiguredCtx(prompter: WizardPrompter, cfg?: OpenClawConfig) {
+  return {
+    cfg: cfg ?? makeConfiguredConfig(),
+    runtime: makeRuntime(),
+    prompter,
+    options: {},
+    accountOverrides: { groupme: DEFAULT_ACCOUNT_ID },
+    shouldPromptAccountIds: false,
+    forceAllowFrom: false,
+    configured: true,
+    label: "GroupMe",
+  };
+}
+
+describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
+  beforeEach(() => {
+    fetchGroupsMock.mockReset();
+    createBotMock.mockReset();
+  });
+
+  it("returns skip when user selects skip", async () => {
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("skip");
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).toBe("skip");
+  });
+
+  it("rotates access token and validates it", async () => {
+    fetchGroupsMock.mockResolvedValueOnce([group("g1", "Family")]);
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "rotate_token",
+    );
+    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "new-token",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg, accountId } = result as { cfg: OpenClawConfig; accountId: string };
+    expect(accountId).toBe(DEFAULT_ACCOUNT_ID);
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.accessToken).toBe("new-token");
+    expect(section.botId).toBe("bot-existing");
+    expect(fetchGroupsMock).toHaveBeenCalledWith("new-token");
+  });
+
+  it("aborts token rotation when validation fails", async () => {
+    fetchGroupsMock.mockRejectedValueOnce(new Error("401"));
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "rotate_token",
+    );
+    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "bad-token",
+    );
+
+    await expect(
+      groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      ),
+    ).rejects.toThrow(/could not validate access token/i);
+  });
+
+  it("changes group and registers a new bot", async () => {
+    fetchGroupsMock.mockResolvedValueOnce([
+      group("g1", "Family"),
+      group("g2", "Work"),
+    ]);
+    createBotMock.mockResolvedValueOnce({
+      bot_id: "bot-new",
+      group_id: "g2",
+      name: "oddclaw",
+      avatar_url: null,
+      callback_url: "https://bot.example.com/groupme/abc123",
+      dm_notification: false,
+      active: true,
+    });
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("change_group")
+      .mockResolvedValueOnce("g2");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.groupId).toBe("g2");
+    expect(section.botId).toBe("bot-new");
+    expect(createBotMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("changes group without re-registering bot", async () => {
+    fetchGroupsMock.mockResolvedValueOnce([
+      group("g1", "Family"),
+      group("g2", "Work"),
+    ]);
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("change_group")
+      .mockResolvedValueOnce("g2");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.groupId).toBe("g2");
+    expect(section.botId).toBe("bot-existing");
+    expect(createBotMock).not.toHaveBeenCalled();
+  });
+
+  it("prompts for publicDomain when missing during change_group with bot registration", async () => {
+    const noDomainCfg = {
+      channels: {
+        groupme: {
+          enabled: true,
+          botId: "bot-existing",
+          accessToken: "token-existing",
+          botName: "oddclaw",
+          groupId: "g1",
+          callbackUrl: "/groupme/abc123?k=secret",
+          requireMention: true,
+        },
+      },
+    } as OpenClawConfig;
+
+    fetchGroupsMock.mockResolvedValueOnce([
+      group("g1", "Family"),
+      group("g2", "Work"),
+    ]);
+    createBotMock.mockResolvedValueOnce({
+      bot_id: "bot-new",
+      group_id: "g2",
+      name: "oddclaw",
+      avatar_url: null,
+      callback_url: "https://prompted.example.com/groupme/abc123",
+      dm_notification: false,
+      active: true,
+    });
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("change_group")
+      .mockResolvedValueOnce("g2");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "https://prompted.example.com/",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter, noDomainCfg),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.groupId).toBe("g2");
+    expect(section.botId).toBe("bot-new");
+    expect(section.publicDomain).toBe("prompted.example.com");
+    expect(createBotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackUrl: expect.stringContaining("https://prompted.example.com/"),
+      }),
+    );
+  });
+
+  it("regenerates callback URL", async () => {
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "regen_callback",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.callbackUrl).toMatch(
+      /^\/groupme\/[0-9a-f]{16}\?k=[0-9a-f]{64}$/,
+    );
+    expect(section.callbackUrl).not.toBe("/groupme/abc123?k=secret");
+  });
+
+  it("toggles requireMention from true to false", async () => {
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "toggle_mention",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.requireMention).toBe(false);
+  });
+
+  it("updates public domain", async () => {
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "update_domain",
+    );
+    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "https://new-domain.example.com/",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.publicDomain).toBe("new-domain.example.com");
+  });
+
+  it("rejects scheme-only input in update_domain via validation", async () => {
+    const { prompter } = makePrompter();
+    const textMock = prompter.text as ReturnType<typeof vi.fn>;
+
+    // First call: returns "https://" which should fail validation, then returns a valid domain
+    textMock.mockImplementationOnce(
+      async (params: { validate?: (value: string) => string | undefined }) => {
+        const error = params.validate?.("https://");
+        expect(error).toBe("Public domain is required");
+        return "valid.example.com";
+      },
+    );
+
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      "update_domain",
+    );
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.publicDomain).toBe("valid.example.com");
+  });
+
+  it("delegates to full re-setup when selected", async () => {
+    fetchGroupsMock.mockResolvedValueOnce([group("g1", "Family")]);
+    createBotMock.mockResolvedValueOnce({
+      bot_id: "bot-fresh",
+      group_id: "g1",
+      name: "openclaw",
+      avatar_url: null,
+      callback_url: "https://new.example.com/groupme/test",
+      dm_notification: false,
+      active: true,
+    });
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("full_setup")
+      .mockResolvedValueOnce("g1");
+    (prompter.text as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("openclaw")
+      .mockResolvedValueOnce("fresh-token")
+      .mockResolvedValueOnce("https://new.example.com/");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    const result =
+      await groupmeOnboardingAdapter.configureWhenConfigured!(
+        configureWhenConfiguredCtx(prompter),
+      );
+
+    expect(result).not.toBe("skip");
+    const { cfg } = result as { cfg: OpenClawConfig };
+    const section = cfg.channels?.groupme as Record<string, unknown>;
+    expect(section.botId).toBe("bot-fresh");
+    expect(section.accessToken).toBe("fresh-token");
   });
 });

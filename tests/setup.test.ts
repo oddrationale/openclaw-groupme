@@ -88,6 +88,54 @@ describe("setup.applyAccountName", () => {
   });
 });
 
+describe("setup.resolveBindingAccountId", () => {
+  it("returns explicit accountId when provided", () => {
+    const result = setup.resolveBindingAccountId!({
+      cfg: emptyCfg(),
+      agentId: "work",
+      accountId: "ops",
+    });
+    expect(result).toBe("ops");
+  });
+
+  it("returns default for single-account setup", () => {
+    const result = setup.resolveBindingAccountId!({
+      cfg: emptyCfg(),
+      agentId: "work",
+    });
+    expect(result).toBe(DEFAULT_ACCOUNT_ID);
+  });
+
+  it("returns configured defaultAccount for multi-account setup", () => {
+    const cfg = cfgWith({
+      defaultAccount: "ops",
+      accounts: {
+        ops: { botId: "bot-ops" },
+        personal: { botId: "bot-personal" },
+      },
+    });
+    const result = setup.resolveBindingAccountId!({
+      cfg,
+      agentId: "work",
+    });
+    expect(result).toBe("ops");
+  });
+
+  it("returns undefined for multi-account setup without defaultAccount", () => {
+    const cfg = cfgWith({
+      accounts: {
+        ops: { botId: "bot-ops" },
+        personal: { botId: "bot-personal" },
+      },
+    });
+    const result = setup.resolveBindingAccountId!({
+      cfg,
+      agentId: "work",
+    });
+    expect(result).toBeUndefined();
+  });
+});
+
 describe("setup.applyAccountConfig", () => {
   it("sets botId from token for default account", () => {
     const result = setup.applyAccountConfig({
