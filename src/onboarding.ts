@@ -181,6 +181,10 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
           if (!normalized) {
             return "Public domain is required";
           }
+          const parsed = parsePublicDomain(trimmed);
+          if (!parsed) {
+            return "Public domain is required";
+          }
           return undefined;
         },
       })
@@ -386,6 +390,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
                   .replace(/^https?:\/\//, "")
                   .replace(/\/+$/, "");
                 if (!normalized) return "Public domain is required";
+                const parsed = parsePublicDomain(trimmed);
+                if (!parsed) return "Public domain is required";
                 return undefined;
               },
             })
@@ -393,7 +399,9 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
           publicDomain = parsePublicDomain(domainRaw);
           updates.publicDomain = publicDomain;
         }
-        const callbackUrl = account.config.callbackUrl || generateCallbackUrl();
+        const rawCallbackUrl = account.config.callbackUrl || generateCallbackUrl();
+        const parsedCallback = new URL(rawCallbackUrl, "http://localhost");
+        const callbackPath = `${parsedCallback.pathname}${parsedCallback.search}`;
 
         const botSpin = prompter.progress("Registering bot with GroupMe...");
         try {
@@ -401,7 +409,7 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
             accessToken: existingToken,
             name: botName,
             groupId: newGroupId,
-            callbackUrl: `https://${publicDomain}${callbackUrl}`,
+            callbackUrl: `https://${publicDomain}${callbackPath}`,
           });
           updates.botId = bot.bot_id;
           botSpin.stop("Bot registered");
@@ -470,6 +478,8 @@ export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
               .replace(/^https?:\/\//, "")
               .replace(/\/+$/, "");
             if (!normalized) return "Public domain is required";
+            const parsed = parsePublicDomain(trimmed);
+            if (!parsed) return "Public domain is required";
             return undefined;
           },
         })
