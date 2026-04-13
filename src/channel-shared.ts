@@ -25,7 +25,7 @@ import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
 
 export const CHANNEL_ID = "groupme" as const;
 
-function redactWebhookPath(
+export function redactWebhookPath(
   account: ResolvedGroupMeAccount,
   callbackUrl: string | undefined,
 ): string {

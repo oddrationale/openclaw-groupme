@@ -1,19 +1,22 @@
 import {
-  DEFAULT_ACCOUNT_ID,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk/core";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
 import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-targets";
 import type { CoreConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
 import { resolveGroupMeAccount } from "./accounts.js";
-import { CHANNEL_ID, groupmeChannelPluginCommon } from "./channel-shared.js";
+import {
+  CHANNEL_ID,
+  groupmeChannelPluginCommon,
+  redactWebhookPath,
+} from "./channel-shared.js";
 import { createGroupMeWebhookHandler } from "./monitor.js";
 import {
   normalizeGroupMeAllowEntry,
   normalizeGroupMeTarget,
   looksLikeGroupMeTargetId,
 } from "./normalize.js";
-import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
 import {
   GROUPME_MAX_TEXT_LENGTH,
   sendGroupMeMedia,
@@ -36,18 +39,6 @@ function normalizeCallbackUrl(raw: string | undefined): string {
     }
     return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
   }
-}
-
-function redactWebhookPath(
-  account: ResolvedGroupMeAccount,
-  callbackUrl: string | undefined,
-): string {
-  const normalized = callbackUrl?.trim() || "/groupme";
-  const security = resolveGroupMeSecurity(account.config);
-  if (!security.logging.redactSecrets) {
-    return normalized;
-  }
-  return redactCallbackUrl(normalized, security);
 }
 
 export const groupmePlugin: ChannelPlugin<
