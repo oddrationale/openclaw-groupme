@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import type {
   OpenClawConfig,
   ChannelSetupWizardAdapter,
 } from "openclaw/plugin-sdk/setup";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/setup";
 import { resolveGroupMeAccount } from "./accounts.js";
 import { createBot, fetchGroups } from "./groupme-api.js";
 import type { CoreConfig, GroupMeConfig } from "./types.js";

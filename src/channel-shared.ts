@@ -1,13 +1,15 @@
 import {
   applyAccountNameToChannelSection,
   buildChannelConfigSchema,
-  DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   migrateBaseNameToDefaultAccount,
-  normalizeAccountId,
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk/core";
+import {
+  DEFAULT_ACCOUNT_ID,
+  normalizeAccountId,
+} from "openclaw/plugin-sdk/account-id";
 import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import type { CoreConfig, GroupMeConfig, ResolvedGroupMeAccount } from "./types.js";
 import {
@@ -16,17 +18,12 @@ import {
   resolveGroupMeAccount,
 } from "./accounts.js";
 import { GroupMeConfigSchema } from "./config-schema.js";
+import { hasGroupMeConfiguredState } from "../configured-state.js";
 import { normalizeGroupMeAllowEntry } from "./normalize.js";
 import { groupmeSetupWizard } from "./onboarding.js";
 import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
 
 export const CHANNEL_ID = "groupme" as const;
-
-const ENV_BOT_ID = "GROUPME_BOT_ID";
-
-function hasGroupMeConfiguredState(env?: NodeJS.ProcessEnv): boolean {
-  return typeof env?.[ENV_BOT_ID] === "string" && env[ENV_BOT_ID].trim().length > 0;
-}
 
 function redactWebhookPath(
   account: ResolvedGroupMeAccount,
@@ -69,7 +66,7 @@ export const groupmeChannelPluginCommon = {
     resolveAccount: (cfg, accountId) =>
       resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
     defaultAccountId: (cfg) => resolveDefaultGroupMeAccountId(cfg as CoreConfig),
-    hasConfiguredState: ({ env }) => hasGroupMeConfiguredState(env),
+    hasConfiguredState: ({ env }) => hasGroupMeConfiguredState({ env }),
     setAccountEnabled: ({ cfg, accountId, enabled }) =>
       setAccountEnabledInConfigSection({
         cfg: cfg as CoreConfig,
