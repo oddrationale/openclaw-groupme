@@ -23,7 +23,12 @@
     "node": ">=18"
   },
   "files": [
+    "api.ts",
+    "runtime-api.ts",
+    "setup-entry.ts",
+    "configured-state.ts",
     "index.ts",
+    "openclaw.plugin.json",
     "src/**/*.ts",
     "LICENSE",
     "README.md"
@@ -36,12 +41,12 @@
     "zod": ">=4.3.6 <5"
   },
   "devDependencies": {
-    "openclaw": ">=2026.2.26",
+    "openclaw": ">=2026.4.10",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.2.26"
+    "openclaw": ">=2026.4.10"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -52,14 +57,27 @@
     "extensions": [
       "./index.ts"
     ],
+    "setupEntry": "./setup-entry.ts",
     "channel": {
       "id": "groupme",
       "label": "GroupMe",
       "selectionLabel": "GroupMe (Bot API)",
-      "blurb": "GroupMe bot webhook integration (group chats only)."
+      "detailLabel": "GroupMe Bot",
+      "docsPath": "/channels/groupme",
+      "docsLabel": "groupme",
+      "blurb": "GroupMe bot webhook integration (group chats only).",
+      "systemImage": "bubble.left.and.bubble.right",
+      "order": 95,
+      "quickstartAllowFrom": true,
+      "configuredState": {
+        "specifier": "./configured-state",
+        "exportName": "hasGroupMeConfiguredState"
+      }
     },
     "install": {
-      "npmSpec": "openclaw-groupme"
+      "npmSpec": "openclaw-groupme",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.4.10"
     }
   }
 }

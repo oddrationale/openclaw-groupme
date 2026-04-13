@@ -1,44 +1,25 @@
 import {
-  applyAccountNameToChannelSection,
-  buildChannelConfigSchema,
   DEFAULT_ACCOUNT_ID,
-  deleteAccountFromConfigSection,
-  migrateBaseNameToDefaultAccount,
-  missingTargetError,
-  normalizeAccountId,
-  registerPluginHttpRoute,
-  setAccountEnabledInConfigSection,
   type ChannelPlugin,
-  type ChannelSetupAdapter,
-} from "openclaw/plugin-sdk";
-import type {
-  CoreConfig,
-  GroupMeConfig,
-  GroupMeProbe,
-  ResolvedGroupMeAccount,
-} from "./types.js";
-import {
-  listGroupMeAccountIds,
-  resolveDefaultGroupMeAccountId,
-  resolveGroupMeAccount,
-} from "./accounts.js";
-import { GroupMeConfigSchema } from "./config-schema.js";
+} from "openclaw/plugin-sdk/core";
+import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
+import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-targets";
+import type { CoreConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
+import { resolveGroupMeAccount } from "./accounts.js";
+import { CHANNEL_ID, groupmeChannelPluginCommon } from "./channel-shared.js";
 import { createGroupMeWebhookHandler } from "./monitor.js";
 import {
   normalizeGroupMeAllowEntry,
   normalizeGroupMeTarget,
   looksLikeGroupMeTargetId,
 } from "./normalize.js";
-import { groupmeOnboardingAdapter } from "./onboarding.js";
-import { getGroupMeRuntime } from "./runtime.js";
 import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
 import {
   GROUPME_MAX_TEXT_LENGTH,
   sendGroupMeMedia,
   sendGroupMeText,
 } from "./send.js";
-
-const CHANNEL_ID = "groupme" as const;
+import { getGroupMeRuntime } from "./runtime.js";
 
 function normalizeCallbackUrl(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
@@ -69,183 +50,12 @@ function redactWebhookPath(
   return redactCallbackUrl(normalized, security);
 }
 
-const meta = {
-  id: CHANNEL_ID,
-  label: "GroupMe",
-  selectionLabel: "GroupMe (Bot API)",
-  docsPath: "/channels/groupme",
-  docsLabel: "groupme",
-  blurb: "GroupMe bot webhook integration (group chats only).",
-  aliases: ["gm"],
-  order: 95,
-  quickstartAllowFrom: true,
-};
-
 export const groupmePlugin: ChannelPlugin<
   ResolvedGroupMeAccount,
   GroupMeProbe
 > = {
   id: CHANNEL_ID,
-  meta,
-  onboarding: groupmeOnboardingAdapter,
-  setup: {
-    resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
-
-    applyAccountName: ({ cfg, accountId, name }) =>
-      applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "groupme",
-        accountId,
-        name,
-      }),
-
-    validateInput: ({ input }) => {
-      if (!input.token?.trim()) {
-        return "GroupMe Bot ID is required (--token <bot-id>)";
-      }
-      return null;
-    },
-
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      let next = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "groupme",
-        accountId,
-        name: input.name,
-      });
-
-      if (accountId !== DEFAULT_ACCOUNT_ID) {
-        next = migrateBaseNameToDefaultAccount({
-          cfg: next,
-          channelKey: "groupme",
-        });
-      }
-
-      const updates: Record<string, unknown> = { enabled: true };
-      if (input.token?.trim()) updates.botId = input.token.trim();
-      if (input.accessToken?.trim())
-        updates.accessToken = input.accessToken.trim();
-      if (input.webhookUrl?.trim()) {
-        updates.callbackUrl = input.webhookUrl.trim();
-      } else if (input.webhookPath?.trim()) {
-        updates.callbackUrl = input.webhookPath.trim();
-      }
-
-      const section = (next.channels?.groupme ?? {}) as GroupMeConfig;
-
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            groupme: {
-              ...section,
-              ...updates,
-            },
-          },
-        };
-      }
-
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          groupme: {
-            ...section,
-            enabled: true,
-            accounts: {
-              ...(section.accounts ?? {}),
-              [accountId]: {
-                ...(section.accounts?.[accountId] ?? {}),
-                ...updates,
-              },
-            },
-          },
-        },
-      };
-    },
-
-    resolveBindingAccountId: ({ cfg, accountId }) => {
-      if (accountId) return accountId;
-      const ids = listGroupMeAccountIds(cfg as CoreConfig);
-      if (ids.length <= 1) return DEFAULT_ACCOUNT_ID;
-      const section = (cfg as CoreConfig).channels?.groupme;
-      const explicitDefault = section?.defaultAccount?.trim();
-      return explicitDefault ? resolveDefaultGroupMeAccountId(cfg as CoreConfig) : undefined;
-    },
-  } satisfies ChannelSetupAdapter,
-  capabilities: {
-    chatTypes: ["group"],
-    media: true,
-    blockStreaming: true,
-  },
-  reload: { configPrefixes: ["channels.groupme"] },
-  configSchema: buildChannelConfigSchema(GroupMeConfigSchema),
-  config: {
-    listAccountIds: (cfg) => listGroupMeAccountIds(cfg as CoreConfig),
-    resolveAccount: (cfg, accountId) =>
-      resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
-    defaultAccountId: (cfg) =>
-      resolveDefaultGroupMeAccountId(cfg as CoreConfig),
-    setAccountEnabled: ({ cfg, accountId, enabled }) =>
-      setAccountEnabledInConfigSection({
-        cfg: cfg as CoreConfig,
-        sectionKey: CHANNEL_ID,
-        accountId,
-        enabled,
-        allowTopLevel: true,
-      }),
-    deleteAccount: ({ cfg, accountId }) =>
-      deleteAccountFromConfigSection({
-        cfg: cfg as CoreConfig,
-        sectionKey: CHANNEL_ID,
-        accountId,
-        clearBaseFields: [
-          "name",
-          "botId",
-          "accessToken",
-          "botName",
-          "groupId",
-          "publicDomain",
-          "callbackUrl",
-          "mentionPatterns",
-          "requireMention",
-          "historyLimit",
-          "allowFrom",
-          "textChunkLimit",
-          "responsePrefix",
-          "security",
-        ],
-      }),
-    isConfigured: (account) => account.configured,
-    describeAccount: (account) => ({
-      accountId: account.accountId,
-      name: account.name,
-      enabled: account.enabled,
-      configured: account.configured,
-      botId: account.botId ? "***" : "",
-      publicDomain: account.config.publicDomain ?? "",
-      callbackUrl: redactWebhookPath(account, account.config.callbackUrl),
-    }),
-    resolveAllowFrom: ({ cfg, accountId }) =>
-      (
-        resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config
-          .allowFrom ?? []
-      ).map((entry) => String(entry)),
-    formatAllowFrom: ({ allowFrom }) =>
-      allowFrom
-        .map((entry) => normalizeGroupMeAllowEntry(String(entry)))
-        .filter((entry): entry is string => Boolean(entry)),
-  },
-  groups: {
-    resolveRequireMention: ({ cfg, accountId }) => {
-      const account = resolveGroupMeAccount({
-        cfg: cfg as CoreConfig,
-        accountId,
-      });
-      return account.config.requireMention ?? true;
-    },
-  },
+  ...groupmeChannelPluginCommon,
   outbound: {
     deliveryMode: "direct",
     chunker: (text, limit) =>

@@ -1,18 +1,20 @@
 import type {
   OpenClawConfig,
-  ReplyPayload,
   RuntimeEnv,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/core";
+import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
 import {
   buildPendingHistoryContextFromMap,
   clearHistoryEntriesIfEnabled,
-  createReplyPrefixOptions,
-  logInboundDrop,
   recordPendingHistoryEntryIfEnabled,
-  resolveControlCommandGate,
-  resolveMentionGatingWithBypass,
   type HistoryEntry,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/reply-history";
+import { createReplyPrefixOptions } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import {
+  logInboundDrop,
+  resolveMentionGatingWithBypass,
+} from "openclaw/plugin-sdk/channel-inbound";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth-native";
 import type {
   GroupMeCallbackData,
   ResolvedGroupMeAccount,

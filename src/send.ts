@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { SsrFBlockedError, fetchWithSsrFGuard } from "openclaw/plugin-sdk";
+import { SsrFBlockedError } from "openclaw/plugin-sdk/browser-security-runtime";
+import { fetchWithSsrFGuard } from "openclaw/plugin-sdk/ssrf-runtime";
 import type { CoreConfig } from "./types.js";
 import { resolveGroupMeAccount } from "./accounts.js";
 import { getGroupMeRuntime } from "./runtime.js";

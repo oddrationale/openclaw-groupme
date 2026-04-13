@@ -1,17 +1,12 @@
-import type { ChannelPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
-import { groupmePlugin } from "./src/channel.js";
-import { setGroupMeRuntime } from "./src/runtime.js";
+import { defineChannelPluginEntry } from "openclaw/plugin-sdk/core";
+import { groupmePlugin } from "./api.js";
+import { setGroupMeRuntime } from "./runtime-api.js";
 
-const plugin = {
+export default defineChannelPluginEntry({
   id: "groupme",
   name: "GroupMe",
   description: "GroupMe channel plugin",
-  configSchema: emptyPluginConfigSchema(),
-  register(api: OpenClawPluginApi) {
-    setGroupMeRuntime(api.runtime);
-    api.registerChannel({ plugin: groupmePlugin as ChannelPlugin });
-  },
-};
-
-export default plugin;
+  plugin: groupmePlugin,
+  configSchema: () => groupmePlugin.configSchema,
+  setRuntime: setGroupMeRuntime,
+});

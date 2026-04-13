@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "openclaw/plugin-sdk";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/core";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type {
   CoreConfig,
