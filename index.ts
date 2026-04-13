@@ -7,6 +7,5 @@ export default defineChannelPluginEntry({
   name: "GroupMe",
   description: "GroupMe channel plugin",
   plugin: groupmePlugin,
-  configSchema: () => groupmePlugin.configSchema,
   setRuntime: setGroupMeRuntime,
 });

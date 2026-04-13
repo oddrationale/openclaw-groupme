@@ -6,6 +6,10 @@ export function setGroupMeRuntime(next: PluginRuntime) {
   runtime = next;
 }
 
+export function clearGroupMeRuntime() {
+  runtime = null;
+}
+
 export function getGroupMeRuntime(): PluginRuntime {
   if (!runtime) {
     throw new Error("GroupMe runtime not initialized");

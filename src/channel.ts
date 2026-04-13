@@ -213,6 +213,7 @@ export const groupmePlugin: ChannelPlugin<
           statusSink: (patch) =>
             ctx.setStatus({ accountId: account.accountId, ...patch }),
         }),
+        auth: "plugin",
         pluginId: CHANNEL_ID,
         accountId: account.accountId,
         log: (message) => ctx.log?.info(message),

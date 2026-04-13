@@ -1,7 +1,5 @@
-import type {
-  OpenClawConfig,
-  RuntimeEnv,
-} from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
 import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
 import {
   buildPendingHistoryContextFromMap,

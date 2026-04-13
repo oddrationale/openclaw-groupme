@@ -7,8 +7,8 @@ import {
   normalizeAccountId,
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
-  type ChannelSetupAdapter,
 } from "openclaw/plugin-sdk/core";
+import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import type { CoreConfig, GroupMeConfig, ResolvedGroupMeAccount } from "./types.js";
 import {
   listGroupMeAccountIds,

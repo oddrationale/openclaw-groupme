@@ -1,12 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CoreConfig } from "../src/types.js";
-import { setGroupMeRuntime } from "../src/runtime.js";
+import { clearGroupMeRuntime, setGroupMeRuntime } from "../src/runtime.js";
 import {
   sendGroupMeMedia,
   sendGroupMeMessage,
   sendGroupMeText,
   uploadGroupMeImage,
 } from "../src/send.js";
+
+function installRuntimeMediaFetch(
+  implementation: Parameters<typeof vi.fn>[0],
+): ReturnType<typeof vi.fn> {
+  const fetchRemoteMedia = vi.fn(implementation);
+  setGroupMeRuntime({
+    channel: {
+      media: {
+        fetchRemoteMedia,
+      },
+    },
+  } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+  return fetchRemoteMedia;
+}
+
+afterEach(() => {
+  clearGroupMeRuntime();
+});
 
 describe("sendGroupMeMessage", () => {
   it("sends text message", async () => {
@@ -143,14 +161,13 @@ describe("high-level send helpers", () => {
       },
     };
 
+    const fetchRemoteMedia = installRuntimeMediaFetch(async () => ({
+      buffer: Buffer.from("img"),
+      contentType: "image/png",
+    }));
+
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(Buffer.from("img"), {
-          status: 200,
-          headers: { "content-type": "image/png" },
-        }),
-      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -171,12 +188,17 @@ describe("high-level send helpers", () => {
       fetchFn: fetchMock as unknown as typeof fetch,
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://example.com/image.png");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+    expect(fetchRemoteMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://example.com/image.png",
+        maxRedirects: 3,
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "https://image.groupme.com/pictures",
     );
-    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://api.groupme.com/v3/bots/post",
     );
   });
@@ -191,14 +213,12 @@ describe("high-level send helpers", () => {
       },
     };
 
-    const fetchMock = vi.fn(async () =>
-      Promise.resolve(
-        new Response("text", {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        }),
-      ),
-    );
+    const fetchRemoteMedia = installRuntimeMediaFetch(async () => ({
+      buffer: Buffer.from("text"),
+      contentType: "text/plain",
+    }));
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
 
     await expect(
       sendGroupMeMedia({
@@ -209,6 +229,8 @@ describe("high-level send helpers", () => {
         fetchFn: fetchMock as unknown as typeof fetch,
       }),
     ).rejects.toThrow("MIME policy");
+    expect(fetchRemoteMedia).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks oversized media downloads", async () => {
@@ -226,17 +248,13 @@ describe("high-level send helpers", () => {
       },
     };
 
-    const fetchMock = vi.fn(async () =>
-      Promise.resolve(
-        new Response(Buffer.from("image-bytes"), {
-          status: 200,
-          headers: {
-            "content-type": "image/png",
-            "content-length": "11",
-          },
-        }),
-      ),
-    );
+    const fetchRemoteMedia = installRuntimeMediaFetch(async () => {
+      throw new Error(
+        "GroupMe media download exceeds maxDownloadBytes (11 > 2)",
+      );
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
 
     await expect(
       sendGroupMeMedia({
@@ -247,6 +265,8 @@ describe("high-level send helpers", () => {
         fetchFn: fetchMock as unknown as typeof fetch,
       }),
     ).rejects.toThrow("maxDownloadBytes");
+    expect(fetchRemoteMedia).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks private-network media URLs by default", async () => {
@@ -273,66 +293,54 @@ describe("high-level send helpers", () => {
   });
 
   it("uses runtime media fetch helper when runtime is available", async () => {
-    try {
-      const cfg: CoreConfig = {
-        channels: {
-          groupme: {
-            botId: "bot-1",
-            accessToken: "token-1",
-            security: {
-              media: {
-                maxDownloadBytes: 1024,
-              },
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 1024,
             },
           },
         },
-      };
+      },
+    };
 
-      const fetchRemoteMedia = vi.fn(async () => ({
-        buffer: Buffer.from("img"),
-        contentType: "image/png",
-      }));
-      setGroupMeRuntime({
-        channel: {
-          media: {
-            fetchRemoteMedia,
+    const fetchRemoteMedia = installRuntimeMediaFetch(async () => ({
+      buffer: Buffer.from("img"),
+      contentType: "image/png",
+    }));
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            payload: { picture_url: "https://i.groupme.com/new" },
+          }),
+          {
+            status: 200,
           },
-        },
-      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+        ),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 201 }));
 
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              payload: { picture_url: "https://i.groupme.com/new" },
-            }),
-            {
-              status: 200,
-            },
-          ),
-        )
-        .mockResolvedValueOnce(new Response("", { status: 201 }));
+    await sendGroupMeMedia({
+      cfg,
+      to: "any",
+      text: "caption",
+      mediaUrl: "https://example.com/image.png",
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
 
-      await sendGroupMeMedia({
-        cfg,
-        to: "any",
-        text: "caption",
-        mediaUrl: "https://example.com/image.png",
-        fetchFn: fetchMock as unknown as typeof fetch,
-      });
-
-      expect(fetchRemoteMedia).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url: "https://example.com/image.png",
-          maxBytes: 1024,
-          maxRedirects: 3,
-        }),
-      );
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      // Reset the global GroupMe runtime to avoid cross-test interference.
-      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
-    }
+    expect(fetchRemoteMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://example.com/image.png",
+        maxBytes: 1024,
+        maxRedirects: 3,
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
