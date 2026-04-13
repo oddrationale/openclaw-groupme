@@ -9,5 +9,14 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["index.ts", "src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "api.ts",
+    "configured-state.ts",
+    "index.ts",
+    "runtime-api.ts",
+    "setup-entry.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
 }
