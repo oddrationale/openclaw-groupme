@@ -5,7 +5,13 @@ An [OpenClaw](https://github.com/oddrationale/openclaw) channel plugin that brin
 ## Install
 
 ```bash
-openclaw plugins install openclaw-groupme
+openclaw plugins install clawhub:openclaw-groupme
+```
+
+You can also install directly from npm if you want npm to be the explicit source:
+
+```bash
+openclaw plugins install npm:openclaw-groupme
 ```
 
 After installing, restart the gateway so it picks up the new plugin:
