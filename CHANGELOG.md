@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.3...openclaw-groupme-v0.4.4) (2026-06-05)
+
+
+### Bug Fixes
+
+* authenticate ClawHub publish in CI ([#50](https://github.com/oddrationale/openclaw-groupme/issues/50)) ([0355837](https://github.com/oddrationale/openclaw-groupme/commit/0355837c7a40299d86c5f8044075652094586a09))
+
 ## [0.4.3](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.2...openclaw-groupme-v0.4.3) (2026-06-05)
 
 
