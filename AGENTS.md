@@ -142,4 +142,4 @@ openclaw plugins install npm:openclaw-groupme
 - **`zod`** (runtime) — config schema validation
 - **`openclaw`** (peer) — plugin SDK, runtime APIs, security utilities (`fetchWithSsrFGuard`, `readJsonBodyWithLimit`, etc.)
 - **`vitest`** (dev) — test framework
-- **`typescript`** (dev) — type-checking only (no compilation)
+- **`typescript`** (dev) — type-checking and compilation to `dist/` during `build`/`prepack`
