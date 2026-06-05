@@ -24,12 +24,15 @@
   },
   "files": [
     "openclaw.plugin.json",
+    "dist/**/*.js",
     "index.ts",
     "src/**/*.ts",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -52,7 +55,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "compat": {
       "pluginApi": ">=2026.2.26 <2026.6.0"
