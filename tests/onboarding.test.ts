@@ -1,6 +1,9 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
-import type { RuntimeEnv, WizardPrompter } from "openclaw/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
+import type {
+  OpenClawConfig,
+  WizardPrompter,
+} from "openclaw/plugin-sdk/core";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchGroupsMock = vi.hoisted(() => vi.fn());

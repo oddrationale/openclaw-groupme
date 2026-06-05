@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type {
-  ChannelOnboardingAdapter,
   OpenClawConfig,
-} from "openclaw/plugin-sdk";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/core";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
+import type { ChannelSetupWizardAdapter } from "openclaw/plugin-sdk/setup";
 import { resolveGroupMeAccount } from "./accounts.js";
 import { createBot, fetchGroups } from "./groupme-api.js";
 import type { CoreConfig, GroupMeConfig } from "./types.js";
@@ -78,7 +78,7 @@ function redactMiddle(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-3)}`;
 }
 
-export const groupmeOnboardingAdapter: ChannelOnboardingAdapter = {
+export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
   channel: "groupme",
   getStatus: async ({ cfg, accountOverrides }) => {
     const accountId = accountOverrides.groupme ?? DEFAULT_ACCOUNT_ID;

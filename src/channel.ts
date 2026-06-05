@@ -4,13 +4,13 @@ import {
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   migrateBaseNameToDefaultAccount,
-  missingTargetError,
   normalizeAccountId,
-  registerPluginHttpRoute,
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
-  type ChannelSetupAdapter,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/core";
+import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
+import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
+import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
 import type {
   CoreConfig,
   GroupMeConfig,
@@ -87,7 +87,7 @@ export const groupmePlugin: ChannelPlugin<
 > = {
   id: CHANNEL_ID,
   meta,
-  onboarding: groupmeOnboardingAdapter,
+  setupWizard: groupmeOnboardingAdapter,
   setup: {
     resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
 
@@ -403,6 +403,7 @@ export const groupmePlugin: ChannelPlugin<
           statusSink: (patch) =>
             ctx.setStatus({ accountId: account.accountId, ...patch }),
         }),
+        auth: "plugin",
         pluginId: CHANNEL_ID,
         accountId: account.accountId,
         log: (message) => ctx.log?.info(message),
