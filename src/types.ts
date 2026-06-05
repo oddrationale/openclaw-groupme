@@ -2,7 +2,7 @@ import type {
   BlockStreamingCoalesceConfig,
   MarkdownConfig,
   OpenClawConfig,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/config-runtime";
 
 export type GroupMeAllowFromEntry = string | number;
 

@@ -1,4 +1,4 @@
-import type { HistoryEntry } from "openclaw/plugin-sdk";
+import type { HistoryEntry } from "openclaw/plugin-sdk/core";
 
 export const DEFAULT_GROUPME_HISTORY_LIMIT = 20;
 
