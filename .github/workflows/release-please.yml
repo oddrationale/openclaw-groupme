@@ -68,6 +68,7 @@ jobs:
             echo "::error::CLAWHUB_TOKEN secret is required to publish to ClawHub."
             exit 1
           fi
+          npx --yes clawhub@0.19.1 login --token "${CLAWHUB_TOKEN}"
           npx --yes clawhub@0.19.1 package publish "${{ steps.pack.outputs.tarball }}" \
             --family code-plugin \
             --source-repo "${GITHUB_REPOSITORY}" \

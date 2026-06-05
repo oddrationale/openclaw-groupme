@@ -116,6 +116,7 @@ For release automation, pack first and publish the generated tarball with a pinn
 
 ```bash
 npm pack
+npx --yes clawhub@0.19.1 login --token "$CLAWHUB_TOKEN"
 npx --yes clawhub@0.19.1 package publish ./openclaw-groupme-0.4.1.tgz --family code-plugin --manual-override-reason "GitHub Actions release publish via CLAWHUB_TOKEN"
 ```
 
