@@ -23,6 +23,7 @@
     "node": ">=18"
   },
   "files": [
+    "openclaw.plugin.json",
     "index.ts",
     "src/**/*.ts",
     "LICENSE",
