@@ -47,16 +47,30 @@ jobs:
       - name: Publish package
         run: npm publish --provenance --access public
 
-  publish-clawhub:
-    needs:
-      - release-please
-      - publish-npm
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: openclaw/clawhub/.github/workflows/package-publish.yml@v0.19.1
-    with:
-      dry_run: false
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+      - name: Pack package for ClawHub
+        id: pack
+        run: |
+          npm pack --json > pack-result.json
+          TARBALL="$(
+            node -e "const fs = require('node:fs'); const packed = JSON.parse(fs.readFileSync('pack-result.json', 'utf8')); const filename = packed[0]?.filename; if (!filename) { console.error('npm pack did not report a tarball filename.'); process.exit(1); } process.stdout.write(filename);"
+          )"
+          if [ -z "${TARBALL}" ] || [ ! -f "${TARBALL}" ]; then
+            echo "::error::npm pack did not produce a readable tarball."
+            exit 1
+          fi
+          echo "tarball=${TARBALL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish package to ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [ -z "${CLAWHUB_TOKEN:-}" ]; then
+            echo "::error::CLAWHUB_TOKEN secret is required to publish to ClawHub."
+            exit 1
+          fi
+          npx --yes clawhub@0.19.1 package publish "${{ steps.pack.outputs.tarball }}" \
+            --family code-plugin \
+            --source-repo "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --source-ref "${GITHUB_REF}" \
+            --manual-override-reason "GitHub Actions release publish via CLAWHUB_TOKEN"
