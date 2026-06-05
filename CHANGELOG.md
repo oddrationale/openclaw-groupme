@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.2...openclaw-groupme-v0.4.3) (2026-06-05)
+
+
+### Bug Fixes
+
+* include compiled plugin output for ClawHub ([#48](https://github.com/oddrationale/openclaw-groupme/issues/48)) ([fb3a793](https://github.com/oddrationale/openclaw-groupme/commit/fb3a79378ee084cf02e47c17e27fa6597db3ebdf))
+
 ## [0.4.2](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.1...openclaw-groupme-v0.4.2) (2026-06-05)
 
 
