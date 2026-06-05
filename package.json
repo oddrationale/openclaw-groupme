@@ -52,6 +52,12 @@
     "extensions": [
       "./index.ts"
     ],
+    "compat": {
+      "pluginApi": ">=2026.2.26"
+    },
+    "build": {
+      "openclawVersion": "2026.2.26"
+    },
     "channel": {
       "id": "groupme",
       "label": "GroupMe",
