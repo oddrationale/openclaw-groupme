@@ -115,9 +115,9 @@ Do not add the `clawhub` CLI as a root dev dependency just to publish releases. 
 For release automation, pack first and publish the generated tarball with a pinned CLI version:
 
 ```bash
-npm pack
+TARBALL="$(npm pack)"
 npx --yes clawhub@0.19.1 login --token "$CLAWHUB_TOKEN"
-npx --yes clawhub@0.19.1 package publish ./openclaw-groupme-0.4.1.tgz --family code-plugin --manual-override-reason "GitHub Actions release publish via CLAWHUB_TOKEN"
+npx --yes clawhub@0.19.1 package publish "./${TARBALL}" --family code-plugin --manual-override-reason "GitHub Actions release publish via CLAWHUB_TOKEN"
 ```
 
 For local ClawHub commands, use `npx` or `pnx` instead of requiring a global install:
