@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.1...openclaw-groupme-v0.4.2) (2026-06-05)
+
+
+### Bug Fixes
+
+* publish ClawHub package from npm artifact ([#46](https://github.com/oddrationale/openclaw-groupme/issues/46)) ([d4a6bdd](https://github.com/oddrationale/openclaw-groupme/commit/d4a6bdd1acd6215b75166e0036f68f251936e556))
+
 ## [0.4.1](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.0...openclaw-groupme-v0.4.1) (2026-06-05)
 
 
