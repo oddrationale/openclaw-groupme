@@ -36,12 +36,13 @@
     "zod": ">=4.3.6 <5"
   },
   "devDependencies": {
-    "openclaw": ">=2026.2.26",
+    "@types/node": "20.19.41",
+    "openclaw": "2026.2.26",
     "typescript": "^6.0.3",
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.2.26"
+    "openclaw": ">=2026.2.26 <2026.6.0"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -53,7 +54,7 @@
       "./index.ts"
     ],
     "compat": {
-      "pluginApi": ">=2026.2.26"
+      "pluginApi": ">=2026.2.26 <2026.6.0"
     },
     "build": {
       "openclawVersion": "2026.2.26"
