@@ -21,6 +21,14 @@ const validPayload = {
   attachments: [{ type: "image", url: "https://i.groupme.com/img" }],
 };
 
+function parseValidPayload(payload: unknown = validPayload) {
+  const parsed = parseGroupMeCallback(payload);
+  if (!parsed) {
+    throw new Error("expected valid callback payload to parse");
+  }
+  return parsed;
+}
+
 describe("parseGroupMeCallback", () => {
   it("parses a valid callback payload", () => {
     const parsed = parseGroupMeCallback(validPayload);
@@ -63,71 +71,103 @@ describe("parseGroupMeCallback", () => {
       "https://i.groupme.com/two",
     ]);
   });
+
+  it("parses supported attachment variants and drops malformed entries", () => {
+    const parsed = parseGroupMeCallback({
+      ...validPayload,
+      created_at: "1700000001",
+      system: "not-a-boolean",
+      avatar_url: "   ",
+      attachments: [
+        null,
+        { type: "" },
+        { type: "image", url: "   " },
+        { type: "location", lat: "1", lng: "2", name: "Park" },
+        { type: "mentions", user_ids: ["u1", "", 2], loci: [[0, "3"], ["bad"], 4] },
+        { type: "emoji", placeholder: "😀", charmap: [[1, 2], ["x"]] },
+        { type: "custom", value: 1 },
+      ],
+    });
+
+    expect(parsed?.createdAt).toBe(1_700_000_001);
+    expect(parsed?.system).toBe(false);
+    expect(parsed?.avatarUrl).toBeNull();
+    expect(parsed?.attachments).toEqual([
+      { type: "location", lat: "1", lng: "2", name: "Park" },
+      { type: "mentions", user_ids: ["u1"], loci: [[0, 3]] },
+      { type: "emoji", placeholder: "😀", charmap: [[1, 2]] },
+      { type: "custom", value: 1 },
+    ]);
+  });
+
+  it("drops malformed structured attachments", () => {
+    const parsed = parseGroupMeCallback({
+      ...validPayload,
+      attachments: [
+        { type: "location", lat: "", lng: "2", name: "Park" },
+        { type: "location", lat: "1", lng: "", name: "Park" },
+        { type: "location", lat: "1", lng: "2", name: "" },
+        { type: "emoji", placeholder: "" },
+        { type: "mentions", user_ids: "u1", loci: "bad" },
+      ],
+    });
+
+    expect(parsed?.attachments).toEqual([{ type: "mentions", user_ids: [], loci: [] }]);
+  });
+
+  it("rejects non-finite created_at values", () => {
+    expect(parseGroupMeCallback({ ...validPayload, created_at: "nope" })).toBeNull();
+    expect(parseGroupMeCallback({ ...validPayload, created_at: undefined })).toBeNull();
+  });
 });
 
 describe("shouldProcessCallback", () => {
   it("accepts user messages", () => {
-    const parsed = parseGroupMeCallback(validPayload);
-    expect(parsed).not.toBeNull();
-    expect(shouldProcessCallback(parsed!)).toBeNull();
+    expect(shouldProcessCallback(parseValidPayload())).toBeNull();
   });
 
   it("rejects bot messages", () => {
-    const parsed = parseGroupMeCallback({
-      ...validPayload,
-      sender_type: "bot",
-    });
-    expect(parsed).not.toBeNull();
-    expect(shouldProcessCallback(parsed!)).toBe("non-user message");
+    expect(shouldProcessCallback(parseValidPayload({ ...validPayload, sender_type: "bot" }))).toBe(
+      "non-user message",
+    );
   });
 
   it("rejects system messages", () => {
-    const parsed = parseGroupMeCallback({
-      ...validPayload,
-      system: true,
-    });
-    expect(parsed).not.toBeNull();
-    expect(shouldProcessCallback(parsed!)).toBe("system message");
+    expect(shouldProcessCallback(parseValidPayload({ ...validPayload, system: true }))).toBe(
+      "system message",
+    );
   });
 
   it("rejects empty messages with no attachments", () => {
-    const parsed = parseGroupMeCallback({
-      ...validPayload,
-      text: "  ",
-      attachments: [],
-    });
-    expect(parsed).not.toBeNull();
-    expect(shouldProcessCallback(parsed!)).toBe("empty message");
+    expect(
+      shouldProcessCallback(parseValidPayload({ ...validPayload, text: "  ", attachments: [] })),
+    ).toBe("empty message");
   });
 
   it("accepts image-only messages", () => {
-    const parsed = parseGroupMeCallback({
-      ...validPayload,
-      text: "",
-      attachments: [{ type: "image", url: "https://i.groupme.com/only" }],
-    });
-    expect(parsed).not.toBeNull();
-    expect(shouldProcessCallback(parsed!)).toBeNull();
+    expect(
+      shouldProcessCallback(
+        parseValidPayload({
+          ...validPayload,
+          text: "",
+          attachments: [{ type: "image", url: "https://i.groupme.com/only" }],
+        }),
+      ),
+    ).toBeNull();
   });
 });
 
 describe("detectGroupMeMention", () => {
   it("detects exact bot name mention", () => {
-    expect(
-      detectGroupMeMention({ text: "oddclaw help", botName: "oddclaw" }),
-    ).toBe(true);
+    expect(detectGroupMeMention({ text: "oddclaw help", botName: "oddclaw" })).toBe(true);
   });
 
   it("detects @botname mention", () => {
-    expect(
-      detectGroupMeMention({ text: "@oddclaw help", botName: "oddclaw" }),
-    ).toBe(true);
+    expect(detectGroupMeMention({ text: "@oddclaw help", botName: "oddclaw" })).toBe(true);
   });
 
   it("is case-insensitive", () => {
-    expect(detectGroupMeMention({ text: "ODDCLAW", botName: "oddclaw" })).toBe(
-      true,
-    );
+    expect(detectGroupMeMention({ text: "ODDCLAW", botName: "oddclaw" })).toBe(true);
   });
 
   it("uses mentionPatterns regex", () => {
@@ -149,9 +189,7 @@ describe("detectGroupMeMention", () => {
   });
 
   it("returns false for unrelated messages", () => {
-    expect(
-      detectGroupMeMention({ text: "random chat", botName: "oddclaw" }),
-    ).toBe(false);
+    expect(detectGroupMeMention({ text: "random chat", botName: "oddclaw" })).toBe(false);
   });
 
   it("handles empty text", () => {
@@ -166,5 +204,19 @@ describe("detectGroupMeMention", () => {
         channelMentionPatterns: ["[(invalid"],
       }),
     ).toBe(true);
+  });
+
+  it("normalizes hidden unicode markers before agent mention matching", () => {
+    expect(
+      detectGroupMeMention({
+        text: "Need odd\u200bclaw now",
+        mentionRegexes: [/oddclaw/],
+      }),
+    ).toBe(true);
+  });
+
+  it("escapes bot names before building mention regexes", () => {
+    expect(detectGroupMeMention({ text: "@bot.name", botName: "bot.name" })).toBe(true);
+    expect(detectGroupMeMention({ text: "@botXname", botName: "bot.name" })).toBe(false);
   });
 });

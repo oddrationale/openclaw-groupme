@@ -28,8 +28,16 @@ describe("groupme normalize", () => {
     expect(normalizeGroupMeTarget("  ")).toBeUndefined();
   });
 
+  it("normalizes nullish and numeric identifiers", () => {
+    expect(normalizeStringId(null)).toBeUndefined();
+    expect(normalizeStringId(undefined)).toBeUndefined();
+    expect(normalizeStringId(Number.NaN)).toBeUndefined();
+    expect(normalizeStringId(0)).toBe("0");
+  });
+
   it("normalizes allow entries and keeps wildcard", () => {
     expect(normalizeGroupMeAllowEntry("groupme:user:123")).toBe("123");
+    expect(normalizeGroupMeAllowEntry("user:123")).toBe("123");
     expect(normalizeGroupMeAllowEntry("*")).toBe("*");
   });
 
