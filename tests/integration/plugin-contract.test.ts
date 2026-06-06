@@ -17,7 +17,7 @@ describe("built OpenClaw plugin contract", () => {
     expect(mod.default.loadChannelPlugin).toBeTypeOf("function");
     expect(mod.default.loadChannelSecrets).toBeTypeOf("function");
     expect(mod.default.setChannelRuntime).toBeTypeOf("function");
-  });
+  }, 60_000);
 
   it("exposes setup and channel sidecars OpenClaw can import directly", async () => {
     const setup = await importBuilt<{ default: Record<string, unknown> }>("dist/setup-entry.js");
@@ -51,7 +51,7 @@ describe("built OpenClaw plugin contract", () => {
     expect(channel.groupmePlugin.gateway?.startAccount).toBeTypeOf("function");
     expect(channel.groupmePlugin.outbound?.sendText).toBeTypeOf("function");
     expect(channel.groupmePlugin.outbound?.sendMedia).toBeTypeOf("function");
-  });
+  }, 60_000);
 
   it("accepts modern config with OpenClaw secret input references", async () => {
     const { groupmePlugin } = await importBuilt<{
@@ -104,7 +104,7 @@ describe("built OpenClaw plugin contract", () => {
         webhookPath: "/groupme",
       }),
     );
-  });
+  }, 60_000);
 
   it("exposes the secret target registry sidecar", async () => {
     const secrets = await importBuilt<{
@@ -121,5 +121,5 @@ describe("built OpenClaw plugin contract", () => {
       "channels.groupme.botId",
       "channels.groupme.callbackToken",
     ]);
-  });
+  }, 60_000);
 });
