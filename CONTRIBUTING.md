@@ -24,7 +24,8 @@ That runs:
 
 - `npm run lint`
 - `npm run typecheck`
-- `npm test`
+- `npm run test:unit`
+- `npm run test:integration`
 - `npm run build`
 - `npm run knip`
 
@@ -36,10 +37,13 @@ npm run lint:fix
 npm run format
 npm run typecheck
 npm test
+npm run test:unit
+npm run test:integration
 npm run test:coverage
+npm run test:live
 npm run test:watch
 npm run build
-npx vitest run tests/parse.test.ts
+npx vitest run tests/unit/parse.test.ts
 npx vitest run -t "accepts active"
 ```
 
