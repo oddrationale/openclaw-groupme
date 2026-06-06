@@ -1,6 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../src/types.js";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -51,11 +51,11 @@ const core = vi.hoisted(() => {
   };
 });
 
-vi.mock("../src/runtime.js", () => ({
+vi.mock("../../src/runtime.js", () => ({
   getGroupMeRuntime: () => core.runtime,
 }));
 
-import { handleGroupMeInbound } from "../src/inbound.js";
+import { handleGroupMeInbound } from "../../src/inbound.js";
 
 function buildRuntimeEnv(): RuntimeEnv {
   return {

@@ -2,8 +2,8 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import { describe, expect, it } from "vitest";
-import { groupmePlugin } from "../src/channel.js";
-import type { GroupMeConfig } from "../src/types.js";
+import { groupmePlugin } from "../../src/channel.js";
+import type { GroupMeConfig } from "../../src/types.js";
 
 function requireSetup(): ChannelSetupAdapter {
   if (!groupmePlugin.setup) {

@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchGroupsMock = vi.hoisted(() => vi.fn());
 const createBotMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../src/groupme-api.js", () => ({
+vi.mock("../../src/groupme-api.js", () => ({
   fetchGroups: fetchGroupsMock,
   createBot: createBotMock,
 }));
 
-import { groupmeOnboardingAdapter } from "../src/onboarding.js";
+import { groupmeOnboardingAdapter } from "../../src/onboarding.js";
 
 function configureWhenConfigured(
   params: Parameters<NonNullable<typeof groupmeOnboardingAdapter.configureWhenConfigured>>[0],

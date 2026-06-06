@@ -3,15 +3,15 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { describe, expect, it, vi } from "vitest";
-import type { CoreConfig, ResolvedGroupMeAccount } from "../src/types.js";
+import type { CoreConfig, ResolvedGroupMeAccount } from "../../src/types.js";
 
 const handleGroupMeInboundMock = vi.hoisted(() => vi.fn(async (_params: unknown) => undefined));
 
-vi.mock("../src/inbound.js", () => ({
+vi.mock("../../src/inbound.js", () => ({
   handleGroupMeInbound: handleGroupMeInboundMock,
 }));
 
-import { createGroupMeWebhookHandler } from "../src/monitor.js";
+import { createGroupMeWebhookHandler } from "../../src/monitor.js";
 
 async function withServer(
   handler: (req: IncomingMessage, res: ServerResponse) => Promise<void>,

@@ -12,6 +12,25 @@ Build confidence that `openclaw-groupme` installs, loads, and behaves correctly 
 
 The intent is to keep normal CI deterministic and credential-free while still providing an optional path to verify real GroupMe behavior before releases.
 
+## Implementation Status
+
+Implemented in this branch:
+
+- Unit tests have been moved to `tests/unit/`, and `npm test` now runs the unit suite.
+- Integration tests live under `tests/integration/` and run in normal `npm run check`.
+- Package contract tests verify the packed npm artifact includes the compiled OpenClaw runtime entrypoints, source sidecars, `openclaw.plugin.json`, and manifest compatibility fields.
+- Install smoke tests pack the plugin, install it into a clean temporary project with OpenClaw, and import the installed runtime/setup/channel/secret sidecars.
+- Plugin contract tests import the built entrypoints and assert the GroupMe channel capability, setup adapter, secret contract, and config schema runtime contract.
+- GroupMe HTTP boundary tests use local HTTP servers to verify request method, path, query, headers, and JSON/body shape for group listing, bot creation, outbound bot posts, and image uploads.
+- Live smoke tests live under `tests/live/`, skip without credentials, and post to GroupMe only when explicitly run with the live secrets.
+- A manual-only `Live Smoke` GitHub Actions workflow runs `npm run test:live` with the `groupme-live-smoke` environment and a concurrency guard.
+
+Still good candidates for later expansion:
+
+- A deeper webhook-flow integration test that runs the full inbound path with a richer fake OpenClaw runtime instead of the existing focused unit-level webhook server tests.
+- A full onboarding wizard integration test backed by local fake HTTP endpoints rather than the current API-boundary tests and mocked unit onboarding tests.
+- OpenClaw CLI `plugins install` / `plugins inspect --json --runtime groupme` smoke tests once a stable isolated OpenClaw profile setup is documented for CI.
+
 ## Test Categories
 
 ### 1. Unit Tests
@@ -445,10 +464,130 @@ Acceptance criteria:
 - Manual workflow can post to a private test GroupMe group.
 - No live smoke test runs automatically on pull requests.
 
-## Open Questions
+## Resolved Decisions
 
-- Does OpenClaw `v2026.6.1` expose a plugin loader or inspector suitable for tests?
-- Should HTTP base URL overrides be environment variables, explicit function parameters, or internal test-only helpers?
-- Should integration tests run on both Node 22 and 24, or only Node 24 after unit tests cover both?
-- Should live smoke tests use a dedicated GroupMe bot and group owned by the project maintainer?
-- Should the live smoke workflow require a protected GitHub environment approval?
+### OpenClaw Loader Or Inspector
+
+Decision: use the OpenClaw CLI plugin commands for package-level integration confidence, not OpenClaw's internal loader modules.
+
+OpenClaw `v2026.6.1` does not expose a public package subpath for the runtime plugin loader. A direct import such as `openclaw/plugins/loader` is blocked by package exports. The package does expose the plugin SDK surfaces, and the CLI exposes plugin inspection commands:
+
+```bash
+openclaw plugins inspect --json --runtime <id>
+openclaw plugins install <path-or-spec-or-plugin>
+openclaw plugins validate --root <path> --entry <path>
+```
+
+Use those commands for install/load confidence:
+
+- `npm pack` this package.
+- Install the tarball into an isolated OpenClaw profile or temporary project.
+- Run `openclaw plugins inspect --json --runtime groupme`.
+- Assert the inspected plugin has the expected id, metadata, setup entry, channel capability, and secret contract.
+
+Avoid importing OpenClaw internal loader files from `dist/plugins/loader.js`. They are useful implementation evidence, but not a stable contract for this plugin's CI.
+
+### HTTP Base URL Overrides
+
+Decision: prefer explicit dependency injection for HTTP tests; use environment variables only at process-boundary smoke layers.
+
+For module-level integration tests, add optional parameters to low-level API helpers instead of process-global test hooks:
+
+```ts
+type GroupMeApiOptions = {
+  fetchFn?: FetchLike;
+  apiBaseUrl?: string;
+  imageBaseUrl?: string;
+};
+```
+
+Apply this pattern to:
+
+- `fetchGroups()`
+- `createBot()`
+- outbound send helpers where base URLs are currently constants
+
+Rationale:
+
+- Explicit parameters keep tests isolated and parallel-safe.
+- Tests can point one call at a local fake GroupMe server without mutating global process state.
+- Production config stays clean; users do not see test-only base URL options.
+- Existing `fetchFn` injection in `send.ts` already follows this direction.
+
+Use environment variables only when the test is intentionally crossing a process boundary, such as an install smoke script or live smoke workflow:
+
+```bash
+GROUPME_LIVE_ACCESS_TOKEN=...
+GROUPME_LIVE_BOT_ID=...
+GROUPME_LIVE_GROUP_ID=...
+```
+
+Avoid public runtime config fields such as `groupmeApiBaseUrl` unless a real user-facing need appears.
+
+### Node Matrix Scope
+
+Decision: keep unit tests on both supported CI Node versions; start integration tests on both Node 22 and 24 unless runtime becomes too slow.
+
+The package declares `engines.node: ">=22.19.0"`, so CI should prove at least one meaningful install/load path on Node 22. A good default is:
+
+- Node 22:
+  - unit tests
+  - package contract test
+  - install smoke test
+  - OpenClaw CLI inspect smoke test
+- Node 24:
+  - unit tests
+  - full integration suite
+  - coverage
+  - package contract test
+  - install smoke test
+  - OpenClaw CLI inspect smoke test
+
+If the integration suite remains fast, run all normal integration tests on both Node 22 and 24. If it becomes slow, keep the broader HTTP-boundary tests on Node 24 and retain the package/install/plugin-contract smoke tests on Node 22.
+
+Live smoke tests should run only on Node 24 unless a Node-version-specific live issue appears.
+
+### Live Smoke GroupMe Resources
+
+Decision: use a dedicated private GroupMe bot and group for live smoke tests.
+
+Do not use a personal or shared real conversation. Create a private test group owned by the maintainer and a dedicated bot used only by CI/live smoke. Store only that bot's credentials in GitHub secrets.
+
+Recommended resources:
+
+- `GROUPME_LIVE_ACCESS_TOKEN`
+- `GROUPME_LIVE_BOT_ID`
+- `GROUPME_LIVE_GROUP_ID`
+
+Recommended operational rules:
+
+- The test group name should clearly identify it as automation-owned.
+- Live smoke messages should include a unique run id and repository/branch context.
+- Live smoke tests should avoid deleting or mutating unrelated GroupMe state.
+- If bot creation/deletion smoke tests are added later, keep them separate from the basic outbound-send smoke test.
+- Rotate the GroupMe access token if it is ever exposed in logs or copied outside GitHub secrets.
+
+### Live Smoke Workflow Protection
+
+Decision: use a protected GitHub Environment for live smoke tests.
+
+The workflow should be manual-only with `workflow_dispatch`, and the secrets should live in a protected environment such as `groupme-live-smoke`.
+
+Recommended workflow safeguards:
+
+- Require maintainer approval before the environment is used.
+- Restrict environment secrets to the live smoke workflow.
+- Add `if: github.repository == 'oddrationale/openclaw-groupme'`.
+- Do not run live smoke on pull requests.
+- Add a concurrency group so only one live smoke run can post at a time.
+
+Example:
+
+```yaml
+environment: groupme-live-smoke
+concurrency:
+  group: groupme-live-smoke
+  cancel-in-progress: false
+```
+
+This keeps normal PR CI credential-free while still allowing a real API check before releases.

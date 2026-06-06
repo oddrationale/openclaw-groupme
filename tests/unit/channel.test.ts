@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setGroupMeRuntime } from "../src/runtime.js";
-import type { CoreConfig, ResolvedGroupMeAccount } from "../src/types.js";
+import { setGroupMeRuntime } from "../../src/runtime.js";
+import type { CoreConfig, ResolvedGroupMeAccount } from "../../src/types.js";
 
 const registerPluginHttpRouteMock = vi.hoisted(() => vi.fn());
 const sendGroupMeTextMock = vi.hoisted(() => vi.fn());
@@ -12,8 +12,8 @@ vi.mock("openclaw/plugin-sdk/webhook-ingress", () => ({
   registerPluginHttpRoute: registerPluginHttpRouteMock,
 }));
 
-vi.mock("../src/send.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/send.js")>();
+vi.mock("../../src/send.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/send.js")>();
   return {
     ...actual,
     sendGroupMeText: sendGroupMeTextMock,
@@ -21,7 +21,7 @@ vi.mock("../src/send.js", async (importOriginal) => {
   };
 });
 
-import { groupmePlugin } from "../src/channel.js";
+import { groupmePlugin } from "../../src/channel.js";
 
 function cfg(groupme: CoreConfig["channels"]["groupme"]): CoreConfig {
   return { channels: { groupme } } as CoreConfig;

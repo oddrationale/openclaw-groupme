@@ -2,6 +2,13 @@ import type { GroupMeApiBot, GroupMeApiGroup } from "./types.js";
 
 const GROUPME_API_BASE = "https://api.groupme.com/v3";
 
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+type GroupMeApiOptions = {
+  fetchFn?: FetchLike;
+  apiBaseUrl?: string;
+};
+
 async function readApiError(response: Response): Promise<string> {
   const fallback = `GroupMe API error: ${response.status} ${response.statusText}`;
   try {
@@ -38,18 +45,23 @@ function readBotResponse(payload: unknown): GroupMeApiBot {
   return bot as GroupMeApiBot;
 }
 
-export async function fetchGroups(accessToken: string): Promise<GroupMeApiGroup[]> {
+export async function fetchGroups(
+  accessToken: string,
+  options: GroupMeApiOptions = {},
+): Promise<GroupMeApiGroup[]> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const apiBaseUrl = options.apiBaseUrl ?? GROUPME_API_BASE;
   const groups: GroupMeApiGroup[] = [];
   let page = 1;
 
   while (true) {
-    const url = new URL(`${GROUPME_API_BASE}/groups`);
+    const url = new URL(`${apiBaseUrl}/groups`);
     url.searchParams.set("token", accessToken);
     url.searchParams.set("per_page", "100");
     url.searchParams.set("omit", "memberships");
     url.searchParams.set("page", String(page));
 
-    const response = await fetch(url);
+    const response = await fetchFn(url);
     if (!response.ok) {
       throw new Error(await readApiError(response));
     }
@@ -72,11 +84,15 @@ export async function createBot(params: {
   name: string;
   groupId: string;
   callbackUrl: string;
+  fetchFn?: FetchLike;
+  apiBaseUrl?: string;
 }): Promise<GroupMeApiBot> {
-  const url = new URL(`${GROUPME_API_BASE}/bots`);
+  const fetchFn = params.fetchFn ?? fetch;
+  const apiBaseUrl = params.apiBaseUrl ?? GROUPME_API_BASE;
+  const url = new URL(`${apiBaseUrl}/bots`);
   url.searchParams.set("token", params.accessToken);
 
-  const response = await fetch(url, {
+  const response = await fetchFn(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

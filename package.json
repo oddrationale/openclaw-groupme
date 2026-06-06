@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run knip",
+    "check": "npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run build && npm run knip",
     "commitlint": "commitlint --edit",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -46,8 +46,11 @@
     "lint:fix": "biome check --write .",
     "prepack": "npm run build",
     "prepare": "lefthook install",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "npm run test:unit",
+    "test:coverage": "vitest run tests/unit tests/integration --coverage",
+    "test:integration": "vitest run tests/integration",
+    "test:live": "vitest run tests/live",
+    "test:unit": "vitest run tests/unit",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

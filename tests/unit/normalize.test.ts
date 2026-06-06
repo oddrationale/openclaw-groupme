@@ -4,7 +4,7 @@ import {
   normalizeGroupMeAllowEntry,
   normalizeGroupMeTarget,
   normalizeStringId,
-} from "../src/normalize.js";
+} from "../../src/normalize.js";
 
 describe("groupme normalize", () => {
   it("normalizes string ids", () => {
