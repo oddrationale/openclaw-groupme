@@ -4,7 +4,8 @@ name = "openclaw-groupme"
 
 [setup]
 script = '''
-cd "$CODEX_WORKTREE_PATH"
+set -eu
+cd "${CODEX_WORKTREE_PATH:?CODEX_WORKTREE_PATH not set}"
 npm ci
 npm run build
 '''
