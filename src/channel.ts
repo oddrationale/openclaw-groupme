@@ -1,23 +1,18 @@
+import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
 import {
   applyAccountNameToChannelSection,
   buildChannelConfigSchema,
+  type ChannelPlugin,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   setAccountEnabledInConfigSection,
-  type ChannelPlugin,
 } from "openclaw/plugin-sdk/core";
-import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
 import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
-import type {
-  CoreConfig,
-  GroupMeConfig,
-  GroupMeProbe,
-  ResolvedGroupMeAccount,
-} from "./types.js";
 import {
+  hasSecretInput,
   listGroupMeAccountIds,
   resolveDefaultGroupMeAccountId,
   resolveGroupMeAccount,
@@ -25,22 +20,18 @@ import {
 import { GroupMeConfigSchema } from "./config-schema.js";
 import { createGroupMeWebhookHandler } from "./monitor.js";
 import {
+  looksLikeGroupMeTargetId,
   normalizeGroupMeAllowEntry,
   normalizeGroupMeTarget,
-  looksLikeGroupMeTargetId,
 } from "./normalize.js";
 import { groupmeOnboardingAdapter } from "./onboarding.js";
 import { getGroupMeRuntime } from "./runtime.js";
-import { redactCallbackUrl, resolveGroupMeSecurity } from "./security.js";
-import {
-  GROUPME_MAX_TEXT_LENGTH,
-  sendGroupMeMedia,
-  sendGroupMeText,
-} from "./send.js";
+import { GROUPME_MAX_TEXT_LENGTH, sendGroupMeMedia, sendGroupMeText } from "./send.js";
+import type { CoreConfig, GroupMeConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
 
 const CHANNEL_ID = "groupme" as const;
 
-function normalizeCallbackUrl(raw: string | undefined): string {
+function normalizeWebhookPath(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
   if (!trimmed) {
     return "/groupme";
@@ -49,7 +40,7 @@ function normalizeCallbackUrl(raw: string | undefined): string {
     const parsed = new URL(trimmed, "http://localhost");
     return parsed.pathname || "/groupme";
   } catch {
-    const noQuery = trimmed.split("?")[0] ?? trimmed;
+    const noQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
     if (!noQuery) {
       return "/groupme";
     }
@@ -57,16 +48,22 @@ function normalizeCallbackUrl(raw: string | undefined): string {
   }
 }
 
-function redactWebhookPath(
-  account: ResolvedGroupMeAccount,
-  callbackUrl: string | undefined,
-): string {
-  const normalized = callbackUrl?.trim() || "/groupme";
-  const security = resolveGroupMeSecurity(account.config);
-  if (!security.logging.redactSecrets) {
-    return normalized;
+function parseWebhookSetupInput(raw: string): {
+  webhookPath: string;
+  callbackToken?: string;
+} {
+  try {
+    const parsed = new URL(raw.trim(), "http://localhost");
+    const callbackToken = parsed.searchParams.get("k")?.trim() || undefined;
+    return {
+      webhookPath: parsed.pathname || "/groupme",
+      callbackToken,
+    };
+  } catch {
+    return {
+      webhookPath: normalizeWebhookPath(raw),
+    };
   }
-  return redactCallbackUrl(normalized, security);
 }
 
 const meta = {
@@ -81,10 +78,7 @@ const meta = {
   quickstartAllowFrom: true,
 };
 
-export const groupmePlugin: ChannelPlugin<
-  ResolvedGroupMeAccount,
-  GroupMeProbe
-> = {
+export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> = {
   id: CHANNEL_ID,
   meta,
   setupWizard: groupmeOnboardingAdapter,
@@ -123,12 +117,15 @@ export const groupmePlugin: ChannelPlugin<
 
       const updates: Record<string, unknown> = { enabled: true };
       if (input.token?.trim()) updates.botId = input.token.trim();
-      if (input.accessToken?.trim())
-        updates.accessToken = input.accessToken.trim();
+      if (input.accessToken?.trim()) updates.accessToken = input.accessToken.trim();
       if (input.webhookUrl?.trim()) {
-        updates.callbackUrl = input.webhookUrl.trim();
+        const parsed = parseWebhookSetupInput(input.webhookUrl);
+        updates.webhookPath = parsed.webhookPath;
+        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
       } else if (input.webhookPath?.trim()) {
-        updates.callbackUrl = input.webhookPath.trim();
+        const parsed = parseWebhookSetupInput(input.webhookPath);
+        updates.webhookPath = parsed.webhookPath;
+        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
       }
 
       const section = (next.channels?.groupme ?? {}) as GroupMeConfig;
@@ -185,8 +182,7 @@ export const groupmePlugin: ChannelPlugin<
     listAccountIds: (cfg) => listGroupMeAccountIds(cfg as CoreConfig),
     resolveAccount: (cfg, accountId) =>
       resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
-    defaultAccountId: (cfg) =>
-      resolveDefaultGroupMeAccountId(cfg as CoreConfig),
+    defaultAccountId: (cfg) => resolveDefaultGroupMeAccountId(cfg as CoreConfig),
     setAccountEnabled: ({ cfg, accountId, enabled }) =>
       setAccountEnabledInConfigSection({
         cfg: cfg as CoreConfig,
@@ -204,10 +200,11 @@ export const groupmePlugin: ChannelPlugin<
           "name",
           "botId",
           "accessToken",
+          "callbackToken",
           "botName",
           "groupId",
           "publicDomain",
-          "callbackUrl",
+          "webhookPath",
           "mentionPatterns",
           "requireMention",
           "historyLimit",
@@ -223,15 +220,15 @@ export const groupmePlugin: ChannelPlugin<
       name: account.name,
       enabled: account.enabled,
       configured: account.configured,
-      botId: account.botId ? "***" : "",
+      botId: hasSecretInput(account.config.botId) ? "***" : "",
       publicDomain: account.config.publicDomain ?? "",
-      callbackUrl: redactWebhookPath(account, account.config.callbackUrl),
+      webhookPath: normalizeWebhookPath(account.config.webhookPath),
+      callbackToken: hasSecretInput(account.config.callbackToken) ? "***" : "",
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
-      (
-        resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config
-          .allowFrom ?? []
-      ).map((entry) => String(entry)),
+      (resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config.allowFrom ?? []).map(
+        (entry) => String(entry),
+      ),
     formatAllowFrom: ({ allowFrom }) =>
       allowFrom
         .map((entry) => normalizeGroupMeAllowEntry(String(entry)))
@@ -248,8 +245,7 @@ export const groupmePlugin: ChannelPlugin<
   },
   outbound: {
     deliveryMode: "direct",
-    chunker: (text, limit) =>
-      getGroupMeRuntime().channel.text.chunkMarkdownText(text, limit),
+    chunker: (text, limit) => getGroupMeRuntime().channel.text.chunkMarkdownText(text, limit),
     chunkerMode: "markdown",
     textChunkLimit: GROUPME_MAX_TEXT_LENGTH,
     resolveTarget: ({ to }) => {
@@ -355,7 +351,7 @@ export const groupmePlugin: ChannelPlugin<
     buildChannelSummary: ({ snapshot }) => ({
       configured: snapshot.configured ?? false,
       running: snapshot.running ?? false,
-      callbackUrl: snapshot.webhookPath ?? null,
+      webhookPath: snapshot.webhookPath ?? null,
       lastStartAt: snapshot.lastStartAt ?? null,
       lastStopAt: snapshot.lastStopAt ?? null,
       lastInboundAt: snapshot.lastInboundAt ?? null,
@@ -367,9 +363,9 @@ export const groupmePlugin: ChannelPlugin<
       name: account.name,
       enabled: account.enabled,
       configured: account.configured,
-      botId: account.botId ? "***" : "",
-      tokenSource: account.accessToken ? "configured" : "none",
-      webhookPath: redactWebhookPath(account, account.config.callbackUrl),
+      botId: hasSecretInput(account.config.botId) ? "***" : "",
+      tokenSource: hasSecretInput(account.config.accessToken) ? "configured" : "none",
+      webhookPath: normalizeWebhookPath(account.config.webhookPath),
       running: runtime?.running ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,
       lastStopAt: runtime?.lastStopAt ?? null,
@@ -388,11 +384,7 @@ export const groupmePlugin: ChannelPlugin<
         );
       }
 
-      const callbackPath = normalizeCallbackUrl(account.config.callbackUrl);
-      const redactedCallbackPath = redactWebhookPath(
-        account,
-        account.config.callbackUrl ?? callbackPath,
-      );
+      const callbackPath = normalizeWebhookPath(account.config.webhookPath);
       const unregister = registerPluginHttpRoute({
         path: callbackPath,
         fallbackPath: "/groupme",
@@ -400,8 +392,7 @@ export const groupmePlugin: ChannelPlugin<
           account,
           config: ctx.cfg as CoreConfig,
           runtime: ctx.runtime,
-          statusSink: (patch) =>
-            ctx.setStatus({ accountId: account.accountId, ...patch }),
+          statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
         }),
         auth: "plugin",
         pluginId: CHANNEL_ID,
@@ -413,14 +404,12 @@ export const groupmePlugin: ChannelPlugin<
         accountId: account.accountId,
         running: true,
         mode: "webhook",
-        webhookPath: redactedCallbackPath,
+        webhookPath: callbackPath,
         lastStartAt: Date.now(),
         lastError: null,
       });
 
-      ctx.log?.info(
-        `[${account.accountId}] GroupMe webhook listening on ${redactedCallbackPath}`,
-      );
+      ctx.log?.info(`[${account.accountId}] GroupMe webhook listening on ${callbackPath}`);
 
       if (ctx.abortSignal.aborted) {
         unregister();

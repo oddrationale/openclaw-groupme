@@ -1,39 +1,25 @@
-import type {
-  OpenClawConfig,
-  ReplyPayload,
-} from "openclaw/plugin-sdk/core";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { logInboundDrop } from "openclaw/plugin-sdk/channel-logging";
+import { resolveMentionGatingWithBypass } from "openclaw/plugin-sdk/channel-mention-gating";
+import { createReplyPrefixOptions } from "openclaw/plugin-sdk/channel-reply-options-runtime";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-gating";
+import type { HistoryEntry, OpenClawConfig, ReplyPayload } from "openclaw/plugin-sdk/core";
 import {
   buildPendingHistoryContextFromMap,
   clearHistoryEntriesIfEnabled,
   recordPendingHistoryEntryIfEnabled,
 } from "openclaw/plugin-sdk/reply-history";
-import { createReplyPrefixOptions } from "openclaw/plugin-sdk/channel-reply-options-runtime";
-import { logInboundDrop } from "openclaw/plugin-sdk/channel-logging";
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-gating";
-import {
-  resolveMentionGatingWithBypass,
-} from "openclaw/plugin-sdk/channel-mention-gating";
-import type { HistoryEntry } from "openclaw/plugin-sdk/core";
-import type {
-  GroupMeCallbackData,
-  ResolvedGroupMeAccount,
-  CoreConfig,
-} from "./types.js";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import {
   buildGroupMeHistoryEntry,
   formatGroupMeHistoryEntry,
   resolveGroupMeBodyForAgent,
 } from "./history.js";
-import { extractImageUrls, detectGroupMeMention } from "./parse.js";
+import { detectGroupMeMention, extractImageUrls } from "./parse.js";
 import { resolveSenderAccess } from "./policy.js";
 import { getGroupMeRuntime } from "./runtime.js";
-import {
-  GROUPME_MAX_TEXT_LENGTH,
-  sendGroupMeMedia,
-  sendGroupMeText,
-} from "./send.js";
 import { resolveGroupMeSecurity } from "./security.js";
+import { GROUPME_MAX_TEXT_LENGTH, sendGroupMeMedia, sendGroupMeText } from "./send.js";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "./types.js";
 
 const CHANNEL_ID = "groupme" as const;
 
@@ -59,9 +45,7 @@ function chunkReplyText(params: {
     return [];
   }
 
-  return params.core.channel.text
-    .chunkMarkdownText(trimmed, params.limit)
-    .filter(Boolean);
+  return params.core.channel.text.chunkMarkdownText(trimmed, params.limit).filter(Boolean);
 }
 
 async function deliverGroupMeReply(params: {
@@ -158,20 +142,9 @@ export async function handleGroupMeInbound(params: {
   runtime: RuntimeEnv;
   groupHistories: Map<string, HistoryEntry[]>;
   historyLimit: number;
-  statusSink?: (patch: {
-    lastInboundAt?: number;
-    lastOutboundAt?: number;
-  }) => void;
+  statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
 }): Promise<void> {
-  const {
-    message,
-    account,
-    config,
-    runtime,
-    groupHistories,
-    historyLimit,
-    statusSink,
-  } = params;
+  const { message, account, config, runtime, groupHistories, historyLimit, statusSink } = params;
   const core = getGroupMeRuntime();
 
   const inboundTimestamp = message.createdAt * 1000;
@@ -190,9 +163,7 @@ export async function handleGroupMeInbound(params: {
     allowFrom,
   });
   if (!senderAllowed) {
-    runtime.log?.(
-      `groupme: drop sender ${message.senderId} (not in allowFrom)`,
-    );
+    runtime.log?.(`groupme: drop sender ${message.senderId} (not in allowFrom)`);
     return;
   }
 
@@ -226,8 +197,7 @@ export async function handleGroupMeInbound(params: {
     message.text,
     config as OpenClawConfig,
   );
-  const commandBypassNeedsAllowFrom =
-    security.commandBypass.requireAllowFrom && hasControlCommand;
+  const commandBypassNeedsAllowFrom = security.commandBypass.requireAllowFrom && hasControlCommand;
   const commandBypassCanSkipMention = !(
     security.commandBypass.requireMentionForCommands &&
     requireMention &&
@@ -235,8 +205,7 @@ export async function handleGroupMeInbound(params: {
   );
 
   const commandGate = resolveControlCommandGate({
-    useAccessGroups:
-      config.commands?.useAccessGroups !== false || commandBypassNeedsAllowFrom,
+    useAccessGroups: config.commands?.useAccessGroups !== false || commandBypassNeedsAllowFrom,
     authorizers: [{ configured: allowFrom.length > 0, allowed: senderAllowed }],
     allowTextCommands,
     hasControlCommand,
@@ -259,9 +228,7 @@ export async function handleGroupMeInbound(params: {
     hasAnyMention: false,
     allowTextCommands,
     hasControlCommand: commandBypassCanSkipMention ? hasControlCommand : false,
-    commandAuthorized: commandBypassCanSkipMention
-      ? commandGate.commandAuthorized
-      : false,
+    commandAuthorized: commandBypassCanSkipMention ? commandGate.commandAuthorized : false,
   });
 
   const imageUrls = extractImageUrls(message.attachments);
@@ -293,15 +260,10 @@ export async function handleGroupMeInbound(params: {
     return;
   }
 
-  const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(
-    config as OpenClawConfig,
-  );
-  const storePath = core.channel.session.resolveStorePath(
-    config.session?.store,
-    {
-      agentId: route.agentId,
-    },
-  );
+  const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(config as OpenClawConfig);
+  const storePath = core.channel.session.resolveStorePath(config.session?.store, {
+    agentId: route.agentId,
+  });
   const previousTimestamp = core.channel.session.readSessionUpdatedAt({
     storePath,
     sessionKey: route.sessionKey,
@@ -327,24 +289,22 @@ export async function handleGroupMeInbound(params: {
     });
   }
 
-  const combinedBody =
-    shouldUseHistoryBuffer
-      ? buildPendingHistoryContextFromMap({
-          historyMap: new Map([[message.groupId, historyEntriesForContext]]),
-          historyKey: message.groupId,
-          limit: historyLimit,
-          currentMessage: body,
-          formatEntry: formatGroupMeHistoryEntry,
-        })
-      : body;
-  const inboundHistory =
-    shouldUseHistoryBuffer
-      ? historyEntriesForContext.map((entry) => ({
-          sender: entry.sender,
-          body: entry.body,
-          timestamp: entry.timestamp,
-        }))
-      : undefined;
+  const combinedBody = shouldUseHistoryBuffer
+    ? buildPendingHistoryContextFromMap({
+        historyMap: new Map([[message.groupId, historyEntriesForContext]]),
+        historyKey: message.groupId,
+        limit: historyLimit,
+        currentMessage: body,
+        formatEntry: formatGroupMeHistoryEntry,
+      })
+    : body;
+  const inboundHistory = shouldUseHistoryBuffer
+    ? historyEntriesForContext.map((entry) => ({
+        sender: entry.sender,
+        body: entry.body,
+        timestamp: entry.timestamp,
+      }))
+    : undefined;
 
   const ctxPayload = core.channel.reply.finalizeInboundContext({
     Body: combinedBody,

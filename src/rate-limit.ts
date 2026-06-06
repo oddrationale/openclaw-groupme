@@ -5,6 +5,11 @@ export type RateLimitCheck =
 type SlidingWindowState = Map<string, number[]>;
 const DEFAULT_MAX_TRACKED_KEYS = 10_000;
 
+function positiveIntegerAtLeastOne(value: number): number {
+  const normalized = Math.floor(value);
+  return Number.isFinite(normalized) ? Math.max(1, normalized) : 1;
+}
+
 function allowInWindow(params: {
   state: SlidingWindowState;
   key: string;
@@ -41,13 +46,10 @@ export class GroupMeRateLimiter {
     maxRequestsPerSender: number;
     maxConcurrent: number;
   }) {
-    this.windowMs = Math.max(1, Math.floor(params.windowMs));
-    this.maxRequestsPerIp = Math.max(1, Math.floor(params.maxRequestsPerIp));
-    this.maxRequestsPerSender = Math.max(
-      1,
-      Math.floor(params.maxRequestsPerSender),
-    );
-    this.maxConcurrent = Math.max(1, Math.floor(params.maxConcurrent));
+    this.windowMs = positiveIntegerAtLeastOne(params.windowMs);
+    this.maxRequestsPerIp = positiveIntegerAtLeastOne(params.maxRequestsPerIp);
+    this.maxRequestsPerSender = positiveIntegerAtLeastOne(params.maxRequestsPerSender);
+    this.maxConcurrent = positiveIntegerAtLeastOne(params.maxConcurrent);
     this.maxTrackedKeys = DEFAULT_MAX_TRACKED_KEYS;
   }
 
@@ -118,10 +120,7 @@ export class GroupMeRateLimiter {
 
   private capStateSize(state: SlidingWindowState) {
     while (state.size > this.maxTrackedKeys) {
-      const oldest = state.keys().next().value as string | undefined;
-      if (!oldest) {
-        return;
-      }
+      const oldest = state.keys().next().value as string;
       state.delete(oldest);
     }
   }

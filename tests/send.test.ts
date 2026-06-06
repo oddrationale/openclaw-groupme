@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CoreConfig } from "../src/types.js";
 import { setGroupMeRuntime } from "../src/runtime.js";
 import {
   sendGroupMeMedia,
@@ -7,6 +6,7 @@ import {
   sendGroupMeText,
   uploadGroupMeImage,
 } from "../src/send.js";
+import type { CoreConfig } from "../src/types.js";
 
 describe("sendGroupMeMessage", () => {
   it("sends text message", async () => {
@@ -56,8 +56,7 @@ describe("sendGroupMeMessage", () => {
 
   it("throws on API error", async () => {
     const fetchMock = vi.fn(
-      async () =>
-        new Response("bad", { status: 400, statusText: "Bad Request" }),
+      async () => new Response("bad", { status: 400, statusText: "Bad Request" }),
     );
 
     await expect(
@@ -108,6 +107,18 @@ describe("uploadGroupMeImage", () => {
         fetchFn: fetchMock as unknown as typeof fetch,
       }),
     ).rejects.toThrow("no picture_url");
+  });
+
+  it("throws when image upload fails", async () => {
+    const fetchMock = vi.fn(async () => new Response("bad", { status: 500 }));
+
+    await expect(
+      uploadGroupMeImage({
+        accessToken: "token",
+        imageData: Buffer.from("abc"),
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("GroupMe image upload failed: 500");
   });
 });
 
@@ -173,12 +184,8 @@ describe("high-level send helpers", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://example.com/image.png");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "https://image.groupme.com/pictures",
-    );
-    expect(fetchMock.mock.calls[2]?.[0]).toBe(
-      "https://api.groupme.com/v3/bots/post",
-    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://image.groupme.com/pictures");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("https://api.groupme.com/v3/bots/post");
   });
 
   it("blocks non-image media content types", async () => {
@@ -270,6 +277,196 @@ describe("high-level send helpers", () => {
       }),
     ).rejects.toThrow("SSRF policy");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when text send is missing botId", async () => {
+    await expect(
+      sendGroupMeText({
+        cfg: { channels: { groupme: {} } } as CoreConfig,
+        to: "any",
+        text: "hello",
+      }),
+    ).rejects.toThrow('GroupMe account "default" is missing botId');
+  });
+
+  it("throws when media send is missing botId or accessToken", async () => {
+    await expect(
+      sendGroupMeMedia({
+        cfg: { channels: { groupme: { accessToken: "token-1" } } } as CoreConfig,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/image.png",
+      }),
+    ).rejects.toThrow('GroupMe account "default" is missing botId');
+
+    await expect(
+      sendGroupMeMedia({
+        cfg: { channels: { groupme: { botId: "bot-1" } } } as CoreConfig,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/image.png",
+      }),
+    ).rejects.toThrow("missing accessToken");
+  });
+
+  it("throws when remote media download returns a non-ok response", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+        },
+      },
+    };
+    const fetchMock = vi.fn(
+      async () => new Response("missing", { status: 404, statusText: "Not Found" }),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/missing.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("GroupMe media download failed: 404 Not Found");
+  });
+
+  it("blocks runtime media fetch SSRF errors", async () => {
+    try {
+      const cfg: CoreConfig = {
+        channels: {
+          groupme: {
+            botId: "bot-1",
+            accessToken: "token-1",
+          },
+        },
+      };
+      setGroupMeRuntime({
+        channel: {
+          media: {
+            fetchRemoteMedia: vi.fn(async () => {
+              throw new Error("ssrf blocked by runtime");
+            }),
+          },
+        },
+      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+      await expect(
+        sendGroupMeMedia({
+          cfg,
+          to: "any",
+          text: "caption",
+          mediaUrl: "https://example.com/image.png",
+        }),
+      ).rejects.toThrow("SSRF policy");
+    } finally {
+      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+    }
+  });
+
+  it("enforces MIME policy on runtime media fetch results", async () => {
+    try {
+      const cfg: CoreConfig = {
+        channels: {
+          groupme: {
+            botId: "bot-1",
+            accessToken: "token-1",
+          },
+        },
+      };
+      setGroupMeRuntime({
+        channel: {
+          media: {
+            fetchRemoteMedia: vi.fn(async () => ({
+              buffer: Buffer.from("text"),
+              contentType: "text/plain; charset=utf-8",
+            })),
+          },
+        },
+      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+      await expect(
+        sendGroupMeMedia({
+          cfg,
+          to: "any",
+          text: "caption",
+          mediaUrl: "https://example.com/file.txt",
+        }),
+      ).rejects.toThrow("MIME policy");
+    } finally {
+      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+    }
+  });
+
+  it("aborts oversized streamed media bodies while preserving the size error", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 4,
+            },
+          },
+        },
+      },
+    };
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.enqueue(new Uint8Array([4, 5]));
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn(
+      async () => new Response(body, { headers: { "content-type": "image/png" } }),
+    );
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/large.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("maxDownloadBytes");
+  });
+
+  it("rejects oversized non-streaming media bodies", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: {
+            media: {
+              maxDownloadBytes: 4,
+            },
+          },
+        },
+      },
+    };
+
+    const response = new Response(Buffer.from("too-large"), {
+      headers: { "content-type": "image/png" },
+    });
+    Object.defineProperty(response, "body", { value: null });
+    const fetchMock = vi.fn(async () => response);
+
+    await expect(
+      sendGroupMeMedia({
+        cfg,
+        to: "any",
+        text: "caption",
+        mediaUrl: "https://example.com/non-streaming.png",
+        fetchFn: fetchMock as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("maxDownloadBytes");
   });
 
   it("uses runtime media fetch helper when runtime is available", async () => {

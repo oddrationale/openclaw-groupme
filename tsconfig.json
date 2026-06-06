@@ -9,5 +9,15 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["index.ts", "src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "index.ts",
+    "channel-plugin-api.ts",
+    "runtime-setter-api.ts",
+    "secret-contract-api.ts",
+    "setup-entry.ts",
+    "setup-plugin-api.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

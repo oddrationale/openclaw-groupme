@@ -28,6 +28,13 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+function textResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "text/plain" },
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -37,12 +44,8 @@ describe("fetchGroups", () => {
   it("paginates until the API returns an empty page", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ response: [makeGroup("g1", "Family")] }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ response: [makeGroup("g2", "Work")] }),
-      )
+      .mockResolvedValueOnce(jsonResponse({ response: [makeGroup("g1", "Family")] }))
+      .mockResolvedValueOnce(jsonResponse({ response: [makeGroup("g2", "Work")] }))
       .mockResolvedValueOnce(jsonResponse({ response: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -53,9 +56,7 @@ describe("fetchGroups", () => {
   });
 
   it("throws when the groups endpoint fails", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ meta: {} }, 401));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ meta: {} }, 401));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchGroups("bad-token")).rejects.toThrow(/401/);
@@ -77,6 +78,20 @@ describe("fetchGroups", () => {
     await expect(fetchGroups("bad-token")).rejects.toThrow(
       /401.*Invalid access token; Authentication failed/,
     );
+  });
+
+  it("falls back to status text when an error payload is not JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(textResponse("not json", 500));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchGroups("token-1")).rejects.toThrow("GroupMe API error: 500");
+  });
+
+  it("throws when the groups endpoint returns an invalid success payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ response: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchGroups("token-1")).rejects.toThrow("invalid payload");
   });
 });
 
@@ -121,9 +136,7 @@ describe("createBot", () => {
   });
 
   it("throws when bot creation fails", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ meta: {} }, 401));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ meta: {} }, 401));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -157,5 +170,19 @@ describe("createBot", () => {
         callbackUrl: "https://placeholder.example.com/groupme/abc?k=secret",
       }),
     ).rejects.toThrow(/400.*Group not found; Bot name already exists/);
+  });
+
+  it("throws when bot creation returns an invalid success payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ response: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createBot({
+        accessToken: "token-1",
+        name: "openclaw",
+        groupId: "group-1",
+        callbackUrl: "https://placeholder.example.com/groupme/abc?k=secret",
+      }),
+    ).rejects.toThrow("invalid payload");
   });
 });

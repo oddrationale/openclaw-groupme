@@ -9,9 +9,7 @@ import {
 
 describe("resolveGroupMeHistoryLimit", () => {
   it("uses default when unset", () => {
-    expect(resolveGroupMeHistoryLimit(undefined)).toBe(
-      DEFAULT_GROUPME_HISTORY_LIMIT,
-    );
+    expect(resolveGroupMeHistoryLimit(undefined)).toBe(DEFAULT_GROUPME_HISTORY_LIMIT);
   });
 
   it("normalizes positive finite values to integers", () => {
@@ -20,6 +18,11 @@ describe("resolveGroupMeHistoryLimit", () => {
 
   it("accepts zero to disable buffering", () => {
     expect(resolveGroupMeHistoryLimit(0)).toBe(0);
+  });
+
+  it("uses default for negative or non-finite values", () => {
+    expect(resolveGroupMeHistoryLimit(-1)).toBe(DEFAULT_GROUPME_HISTORY_LIMIT);
+    expect(resolveGroupMeHistoryLimit(Number.NaN)).toBe(DEFAULT_GROUPME_HISTORY_LIMIT);
   });
 });
 
@@ -39,9 +42,11 @@ describe("resolveGroupMeBodyForAgent", () => {
         rawBody: " ",
         imageUrls: ["https://i.groupme.com/one", "https://i.groupme.com/two"],
       }),
-    ).toBe(
-      "Image: https://i.groupme.com/one\nImage: https://i.groupme.com/two",
-    );
+    ).toBe("Image: https://i.groupme.com/one\nImage: https://i.groupme.com/two");
+  });
+
+  it("preserves raw body when there is no text or image fallback", () => {
+    expect(resolveGroupMeBodyForAgent({ rawBody: "   ", imageUrls: [] })).toBe("   ");
   });
 });
 
@@ -76,8 +81,6 @@ describe("buildGroupMeHistoryEntry", () => {
 
 describe("formatGroupMeHistoryEntry", () => {
   it("formats sender-prefixed line", () => {
-    expect(formatGroupMeHistoryEntry({ sender: "Bob", body: "hey" })).toBe(
-      "Bob: hey",
-    );
+    expect(formatGroupMeHistoryEntry({ sender: "Bob", body: "hey" })).toBe("Bob: hey");
   });
 });

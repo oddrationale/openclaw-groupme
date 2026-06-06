@@ -1,10 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  CoreConfig,
-  GroupMeCallbackData,
-  ResolvedGroupMeAccount,
-} from "../src/types.js";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -20,14 +16,10 @@ const core = vi.hoisted(() => {
     resolveEnvelopeFormatOptions: vi.fn(() => ({})),
     resolveStorePath: vi.fn(() => "/tmp/groupme-session"),
     readSessionUpdatedAt: vi.fn(() => undefined),
-    formatAgentEnvelope: vi.fn(
-      (params: { body: string }) => `ENV:${params.body}`,
-    ),
+    formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
     finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
     recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(
-      async (_params: unknown) => undefined,
-    ),
+    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async (_params: unknown) => undefined),
     chunkMarkdownText: vi.fn((text: string) => [text]),
   };
 
@@ -47,8 +39,7 @@ const core = vi.hoisted(() => {
           resolveEnvelopeFormatOptions: fns.resolveEnvelopeFormatOptions,
           formatAgentEnvelope: fns.formatAgentEnvelope,
           finalizeInboundContext: fns.finalizeInboundContext,
-          dispatchReplyWithBufferedBlockDispatcher:
-            fns.dispatchReplyWithBufferedBlockDispatcher,
+          dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
         },
         session: {
           resolveStorePath: fns.resolveStorePath,
@@ -76,9 +67,7 @@ function buildRuntimeEnv(): RuntimeEnv {
   };
 }
 
-function buildAccount(
-  overrides?: Partial<ResolvedGroupMeAccount>,
-): ResolvedGroupMeAccount {
+function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
   return {
     accountId: "default",
     enabled: true,
@@ -93,9 +82,7 @@ function buildAccount(
   };
 }
 
-function buildMessage(
-  overrides?: Partial<GroupMeCallbackData>,
-): GroupMeCallbackData {
+function buildMessage(overrides?: Partial<GroupMeCallbackData>): GroupMeCallbackData {
   return {
     id: "msg-1",
     text: "/help",
@@ -115,7 +102,9 @@ function buildMessage(
 
 describe("handleGroupMeInbound command bypass security", () => {
   beforeEach(() => {
-    Object.values(core.fns).forEach((fn) => fn.mockClear());
+    for (const fn of Object.values(core.fns)) {
+      fn.mockClear();
+    }
   });
 
   it("blocks command bypass when allowFrom is empty and requireAllowFrom is true", async () => {
@@ -141,9 +130,7 @@ describe("handleGroupMeInbound command bypass security", () => {
       historyLimit: 20,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
   });
 
   it("allows command bypass when explicitly configured", async () => {
@@ -169,9 +156,7 @@ describe("handleGroupMeInbound command bypass security", () => {
       historyLimit: 20,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).toHaveBeenCalledTimes(1);
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalledTimes(1);
   });
 
   it("requires mention for commands in strict mode", async () => {
@@ -199,9 +184,7 @@ describe("handleGroupMeInbound command bypass security", () => {
       historyLimit: 20,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(groupHistories.get("group-1")).toHaveLength(1);
   });
 });

@@ -7,6 +7,11 @@
   },
   "include": [
     "index.ts",
+    "channel-plugin-api.ts",
+    "runtime-setter-api.ts",
+    "secret-contract-api.ts",
+    "setup-entry.ts",
+    "setup-plugin-api.ts",
     "src/**/*.ts"
   ]
 }

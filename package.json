@@ -20,27 +20,48 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.19.0"
   },
   "files": [
     "openclaw.plugin.json",
     "dist/**/*.js",
     "index.ts",
+    "channel-plugin-api.ts",
+    "runtime-setter-api.ts",
+    "secret-contract-api.ts",
+    "setup-entry.ts",
+    "setup-plugin-api.ts",
     "src/**/*.ts",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run knip",
+    "commitlint": "commitlint --edit",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "knip": "knip",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "prepack": "npm run build",
+    "prepare": "lefthook install",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": ">=4.3.6 <5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@types/node": "20.19.41",
+    "@vitest/coverage-v8": "^4.1.8",
+    "knip": "^5.71.0",
+    "lefthook": "^2.1.9",
     "openclaw": "2026.6.1",
     "typescript": "^6.0.3",
     "vitest": "^4.0.18"
@@ -57,6 +78,7 @@
     "extensions": [
       "./dist/index.js"
     ],
+    "setupEntry": "./dist/setup-entry.js",
     "compat": {
       "pluginApi": ">=2026.6.1"
     },
@@ -67,7 +89,14 @@
       "id": "groupme",
       "label": "GroupMe",
       "selectionLabel": "GroupMe (Bot API)",
-      "blurb": "GroupMe bot webhook integration (group chats only)."
+      "blurb": "GroupMe bot webhook integration (group chats only).",
+      "doctorCapabilities": {
+        "groupModel": "sender",
+        "groupAllowFromFallbackToAllowFrom": false
+      }
+    },
+    "startup": {
+      "deferConfiguredChannelFullLoadUntilAfterListen": true
     },
     "install": {
       "npmSpec": "openclaw-groupme"

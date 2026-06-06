@@ -1,7 +1,4 @@
-import {
-  normalizeGroupMeAllowEntry,
-  normalizeStringId,
-} from "./normalize.js";
+import { normalizeGroupMeAllowEntry, normalizeStringId } from "./normalize.js";
 
 export function resolveSenderAccess(params: {
   senderId: string;

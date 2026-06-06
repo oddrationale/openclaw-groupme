@@ -102,7 +102,7 @@ If you already have a GroupMe bot created (maybe from the [Bots page](https://de
 openclaw channels add --channel groupme \
   --token "YOUR_GROUPME_BOT_ID" \
   --access-token "YOUR_GROUPME_ACCESS_TOKEN" \
-  --webhook-url "/groupme/callback?k=YOUR_SECRET"
+  --webhook-path "/groupme/callback"
 ```
 
 For named accounts (useful if you're running multiple bots):
@@ -113,21 +113,21 @@ openclaw channels add --channel groupme \
   --name "Work Bot" \
   --token "YOUR_GROUPME_BOT_ID" \
   --access-token "YOUR_GROUPME_ACCESS_TOKEN" \
-  --webhook-url "/groupme/callback?k=YOUR_SECRET"
+  --webhook-path "/groupme/callback"
 ```
 
 | Flag | Maps to config | Description |
 | ---- | -------------- | ----------- |
 | `--token` | `botId` | Your GroupMe Bot ID |
 | `--access-token` | `accessToken` | Your GroupMe access token |
-| `--webhook-url` | `callbackUrl` | Full relative webhook URL (path + query token) |
-| `--webhook-path` | `callbackUrl` | Alias for `--webhook-url` |
+| `--webhook-url` | `webhookPath` | Relative webhook route path |
+| `--webhook-path` | `webhookPath` | Relative webhook route path |
 | `--account` | account ID | Named account identifier |
 | `--name` | `name` | Display name for the account |
 
-> **Note:** The non-interactive CLI does not prompt for `botName`, `groupId`, `requireMention`, or `publicDomain`. You can add these manually in your config file afterward, or set them via environment variables.
+> **Note:** The non-interactive CLI does not prompt for `botName`, `groupId`, `requireMention`, `publicDomain`, or `callbackToken`. Add those manually afterward, or use the interactive wizard to generate complete webhook settings.
 
-After adding the channel, make sure the callback URL you gave GroupMe (when you created the bot) matches what you passed to `--webhook-url`. Then restart the gateway:
+After adding the channel, make sure the callback URL you gave GroupMe uses the configured `webhookPath` and `callbackToken`. Then restart the gateway:
 
 ```bash
 openclaw gateway restart
@@ -147,7 +147,8 @@ If you prefer editing config files directly, here's what a complete setup looks 
       "botId": "YOUR_GROUPME_BOT_ID",
       "groupId": "YOUR_GROUPME_GROUP_ID",
       "publicDomain": "bot.example.com",
-      "callbackUrl": "/groupme/e60b3e59da98950f?k=YOUR_SECRET_TOKEN",
+      "webhookPath": "/groupme/e60b3e59da98950f",
+      "callbackToken": "YOUR_SECRET_TOKEN",
       "requireMention": true
     }
   }
@@ -161,7 +162,7 @@ If GroupMe is already configured and you run `openclaw configure` again, you'll 
 - **Skip** — leave everything as-is
 - **Rotate access token** — replace the stored access token (validates the new token by fetching your groups)
 - **Change group** — pick a different GroupMe group and optionally register a new bot in it
-- **Regenerate callback URL** — create a new random callback path and secret token (you'll need to update the bot's callback URL in GroupMe afterward)
+- **Regenerate webhook settings** — create a new random webhook path and callback token (you'll need to update the bot's callback URL in GroupMe afterward)
 - **Toggle requireMention** — flip mention-required mode on or off
 - **Update public domain** — change the public domain used for callback URLs
 - **Full re-setup** — start from scratch with the interactive wizard
@@ -231,7 +232,7 @@ The plugin ships with some security defaults out of the box. Replay protection a
 Every incoming webhook request goes through this gauntlet before your agent ever sees it:
 
 1. **Method check** — Only `POST` requests are accepted (405 for everything else)
-2. **Callback token auth** — The `k` query parameter in the callback URL is verified using timing-safe comparison
+2. **Callback token auth** — The `k` query parameter in the callback URL is verified against `callbackToken` using timing-safe comparison
 3. **Proxy validation** — If configured, validates trusted proxy headers, allowed hosts, and HTTPS protocol
 4. **Body parsing** — 64KB size limit, 15-second timeout
 5. **Payload parsing** — Extracts the GroupMe callback data and filters out bot messages, system messages, and empty messages
@@ -321,31 +322,35 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 | `security.proxy.requireHttpsProto` | boolean | `false` | Require the effective protocol to be HTTPS |
 | `security.proxy.rejectStatus` | number | `403` | HTTP status for proxy-policy rejections (`400`, `403`, or `404`) |
 
-## Environment Variables
+## Secrets
 
-For the default account, you can use environment variables instead of (or alongside) config file values. This is handy for CI/CD, Docker deployments, or anywhere you'd rather not put secrets in a config file.
+`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, or use SecretRefs for env/file/exec-backed secrets:
 
-| Variable | Maps to config | Description |
-| -------- | -------------- | ----------- |
-| `GROUPME_BOT_ID` | `botId` | GroupMe Bot ID |
-| `GROUPME_ACCESS_TOKEN` | `accessToken` | GroupMe access token |
-| `GROUPME_BOT_NAME` | `botName` | Bot display name |
-| `GROUPME_GROUP_ID` | `groupId` | GroupMe group ID |
-| `GROUPME_PUBLIC_DOMAIN` | `publicDomain` | Public domain for the callback URL |
-| `GROUPME_CALLBACK_URL` | `callbackUrl` | Relative webhook URL (path + query token) |
-
-If both a config value and an environment variable are set, the **config value wins**. Environment variables only apply to the default account — named accounts must be configured in the config file.
+```json
+{
+  "channels": {
+    "groupme": {
+      "botId": { "source": "env", "provider": "default", "id": "GROUPME_BOT_ID" },
+      "accessToken": { "source": "env", "provider": "default", "id": "GROUPME_ACCESS_TOKEN" },
+      "callbackToken": { "source": "env", "provider": "default", "id": "GROUPME_CALLBACK_TOKEN" },
+      "groupId": "YOUR_GROUPME_GROUP_ID",
+      "webhookPath": "/groupme/callback"
+    }
+  }
+}
+```
 
 ## Config Reference
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `botId` | string | — | GroupMe Bot ID |
-| `accessToken` | string | — | GroupMe access token (required for image uploads and the interactive wizard) |
+| `botId` | secret input | — | GroupMe Bot ID |
+| `accessToken` | secret input | — | GroupMe access token (required for image uploads and the interactive wizard) |
+| `callbackToken` | secret input | — | Secret expected in the inbound `k` query parameter |
 | `botName` | string | — | Bot display name, used for mention detection |
 | `groupId` | string | — | Expected GroupMe `group_id` for inbound binding |
 | `publicDomain` | string | — | Public domain where the gateway is reachable (e.g., `bot.example.com`) |
-| `callbackUrl` | string | `/groupme` | Relative webhook URL including query token |
+| `webhookPath` | string | `/groupme` | Relative webhook route path |
 | `requireMention` | boolean | `true` | Only respond when mentioned by name |
 | `historyLimit` | number | `20` | Max buffered messages per group (when `requireMention: true`) |
 | `mentionPatterns` | string[] | — | Custom regex patterns for mention detection |
@@ -353,15 +358,18 @@ If both a config value and an environment variable are set, the **config value w
 | `textChunkLimit` | number | `1000` | Max characters per outbound text chunk |
 | `security` | object | — | Security overrides (see [Security](#security) section above) |
 
-## Callback URL Format
+## Webhook URL Format
 
-The `callbackUrl` stores the full relative webhook URL (path + secret query token):
+The plugin stores the route path and secret separately:
 
+```json
+{
+  "webhookPath": "/groupme/e60b3e59da98950f",
+  "callbackToken": "775c9958da544c73e6d97c04f884957caa174c8570889bbaa0900d6253f20bbc"
+}
 ```
-/groupme/e60b3e59da98950f?k=775c9958da544c73e6d97c04f884957caa174c8570889bbaa0900d6253f20bbc
-```
 
-The full URL you register with GroupMe is your public domain + this path:
+The full URL you register with GroupMe is your public domain plus the path and `k` token:
 
 ```
 https://bot.example.com/groupme/e60b3e59da98950f?k=775c9958da544c73e6d97c04f884957caa174c8570889bbaa0900d6253f20bbc
@@ -390,14 +398,14 @@ GroupMe bots are intentionally limited compared to full user accounts. These con
 ## Troubleshooting
 
 - **Bot doesn't respond:**
-  - Is your webhook URL public, HTTPS, and matching the `callbackUrl` in config?
+  - Is your webhook URL public, HTTPS, and matching `webhookPath` plus `callbackToken`?
   - Does `groupId` match the actual GroupMe group ID?
   - Is `botId` correct?
   - If `requireMention: true`, are you mentioning the bot by name?
   - Check `allowFrom` if you have a sender allowlist configured
 
 - **Webhook returns 404 or 403:**
-  - Verify the `k` token in the URL matches what's in `callbackUrl`
+  - Verify the `k` token in the URL matches `callbackToken`
   - Check `groupId` binding
   - If using proxy validation, check your `security.proxy` settings
 

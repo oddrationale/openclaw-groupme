@@ -1,10 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  CoreConfig,
-  GroupMeCallbackData,
-  ResolvedGroupMeAccount,
-} from "../src/types.js";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -20,14 +16,10 @@ const core = vi.hoisted(() => {
     resolveEnvelopeFormatOptions: vi.fn(() => ({})),
     resolveStorePath: vi.fn(() => "/tmp/groupme-session"),
     readSessionUpdatedAt: vi.fn(() => undefined),
-    formatAgentEnvelope: vi.fn(
-      (params: { body: string }) => `ENV:${params.body}`,
-    ),
+    formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
     finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
     recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(
-      async (_params: unknown) => undefined,
-    ),
+    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async (_params: unknown) => undefined),
     chunkMarkdownText: vi.fn((text: string) => [text]),
   };
 
@@ -47,8 +39,7 @@ const core = vi.hoisted(() => {
           resolveEnvelopeFormatOptions: fns.resolveEnvelopeFormatOptions,
           formatAgentEnvelope: fns.formatAgentEnvelope,
           finalizeInboundContext: fns.finalizeInboundContext,
-          dispatchReplyWithBufferedBlockDispatcher:
-            fns.dispatchReplyWithBufferedBlockDispatcher,
+          dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
         },
         session: {
           resolveStorePath: fns.resolveStorePath,
@@ -76,9 +67,7 @@ function buildRuntimeEnv(): RuntimeEnv {
   };
 }
 
-function buildAccount(
-  overrides?: Partial<ResolvedGroupMeAccount>,
-): ResolvedGroupMeAccount {
+function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
   return {
     accountId: "default",
     enabled: true,
@@ -93,9 +82,7 @@ function buildAccount(
   };
 }
 
-function buildMessage(
-  overrides?: Partial<GroupMeCallbackData>,
-): GroupMeCallbackData {
+function buildMessage(overrides?: Partial<GroupMeCallbackData>): GroupMeCallbackData {
   return {
     id: "msg-1",
     text: "hello",
@@ -115,7 +102,9 @@ function buildMessage(
 
 describe("handleGroupMeInbound context payload", () => {
   beforeEach(() => {
-    Object.values(core.fns).forEach((fn) => fn.mockClear());
+    for (const fn of Object.values(core.fns)) {
+      fn.mockClear();
+    }
   });
 
   it("sets GroupSpace to the message groupId", async () => {
@@ -129,10 +118,7 @@ describe("handleGroupMeInbound context payload", () => {
     });
 
     expect(core.fns.finalizeInboundContext).toHaveBeenCalledTimes(1);
-    const ctx = core.fns.finalizeInboundContext.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >;
+    const ctx = core.fns.finalizeInboundContext.mock.calls[0][0] as Record<string, unknown>;
     expect(ctx.GroupSpace).toBe("group-42");
   });
 
@@ -146,10 +132,7 @@ describe("handleGroupMeInbound context payload", () => {
       historyLimit: 20,
     });
 
-    const ctx = core.fns.finalizeInboundContext.mock.calls[0][0] as Record<
-      string,
-      unknown
-    >;
+    const ctx = core.fns.finalizeInboundContext.mock.calls[0][0] as Record<string, unknown>;
     expect(ctx.GroupChannel).toBeUndefined();
   });
 });

@@ -3,6 +3,7 @@ import type {
   MarkdownConfig,
   OpenClawConfig,
 } from "openclaw/plugin-sdk/config-runtime";
+import type { SecretInput } from "openclaw/plugin-sdk/secret-ref-runtime";
 
 export type GroupMeAllowFromEntry = string | number;
 
@@ -54,12 +55,13 @@ export type GroupMeSecurityConfig = {
 export type GroupMeAccountConfig = {
   name?: string;
   enabled?: boolean;
-  botId?: string;
-  accessToken?: string;
+  botId?: SecretInput;
+  accessToken?: SecretInput;
+  callbackToken?: SecretInput;
   botName?: string;
   groupId?: string;
   publicDomain?: string;
-  callbackUrl?: string;
+  webhookPath?: string;
   mentionPatterns?: string[];
   requireMention?: boolean;
   historyLimit?: number;
@@ -186,9 +188,7 @@ export type GroupMeApiBot = {
   active: boolean;
 };
 
-export type ReplayCheck =
-  | { kind: "accepted"; key: string }
-  | { kind: "duplicate"; key: string };
+export type ReplayCheck = { kind: "accepted"; key: string } | { kind: "duplicate"; key: string };
 
 export type WebhookDecision =
   | { kind: "accept"; message: GroupMeCallbackData; release: () => void }
