@@ -24,9 +24,9 @@ Implemented in this branch:
 - GroupMe HTTP boundary tests use local HTTP servers to verify request method, path, query, headers, and JSON/body shape for group listing, bot creation, outbound bot posts, and image uploads.
 - Webhook-flow integration tests mount the real webhook handler on a local HTTP server and move accepted callbacks through the real inbound/session/dispatch path with a fake OpenClaw runtime.
 - Onboarding HTTP-boundary tests run the real setup wizard adapter against fake GroupMe `/groups` and `/bots` endpoints.
-- OpenClaw CLI smoke tests pack the plugin, install it into an isolated temporary OpenClaw home, and inspect it through `openclaw plugins inspect --json --runtime groupme`.
+- OpenClaw CLI smoke tests pack the plugin, install it into an isolated temporary OpenClaw home, inspect it through `openclaw plugins inspect --json --runtime groupme`, configure it with `openclaw channels add`, verify channel status/listing, and dry-run `openclaw message send --channel groupme`.
 - Live smoke tests live under `tests/live/`, skip without credentials, and post to GroupMe only when explicitly run with the live secrets.
-- A manual-only `Live Smoke` GitHub Actions workflow runs `npm run test:live` with the `groupme-live-smoke` environment and a concurrency guard.
+- A manual-only `Live Smoke` GitHub Actions workflow runs the GroupMe API live smoke first, then the plugin outbound live smoke, with the `groupme-live-smoke` environment and a concurrency guard.
 
 Still good candidates for later expansion:
 
@@ -274,14 +274,17 @@ Planned structure:
 ```text
 tests/
   live/
-    groupme-live.test.ts
+    groupme-api-live.test.ts
+    groupme-plugin-outbound-live.test.ts
 ```
 
 Recommended scripts:
 
 ```json
 {
-  "test:live": "vitest run tests/live"
+  "test:live": "vitest run tests/live",
+  "test:live:api": "vitest run tests/live/groupme-api-live.test.ts",
+  "test:live:plugin-outbound": "vitest run tests/live/groupme-plugin-outbound-live.test.ts"
 }
 ```
 
@@ -328,7 +331,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm run test:live
+      - run: npm run test:live:api
+        env:
+          GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
+          GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
+          GROUPME_LIVE_GROUP_ID: ${{ secrets.GROUPME_LIVE_GROUP_ID }}
+
+      - run: npm run test:live:plugin-outbound
         env:
           GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
           GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
@@ -366,6 +375,8 @@ Recommended script shape:
   "test:unit": "vitest run tests/unit",
   "test:integration": "vitest run tests/integration",
   "test:live": "vitest run tests/live",
+  "test:live:api": "vitest run tests/live/groupme-api-live.test.ts",
+  "test:live:plugin-outbound": "vitest run tests/live/groupme-plugin-outbound-live.test.ts",
   "test:coverage": "vitest run tests/unit tests/integration --coverage"
 }
 ```
@@ -457,7 +468,8 @@ Acceptance criteria:
 
 ### Phase 6: Live Smoke Test
 
-- Add `tests/live/groupme-live.test.ts`.
+- Add `tests/live/groupme-api-live.test.ts`.
+- Add `tests/live/groupme-plugin-outbound-live.test.ts`.
 - Add manual `Live Smoke` GitHub Actions workflow.
 - Store secrets in GitHub Actions environment/repository secrets.
 - Start with outbound text send only.
