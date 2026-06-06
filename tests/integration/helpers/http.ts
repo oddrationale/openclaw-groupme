@@ -15,6 +15,11 @@ export type TestHttpServer = {
   close(): Promise<void>;
 };
 
+export type NodeHandlerServer = {
+  baseUrl: string;
+  close(): Promise<void>;
+};
+
 export async function startTestHttpServer(
   handler: (request: RecordedRequest, response: ServerResponse) => void | Promise<void>,
 ): Promise<TestHttpServer> {
@@ -71,6 +76,36 @@ export async function startTestHttpServer(
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
     requests,
+    close: () => closeServer(server),
+  };
+}
+
+export async function startNodeHandlerServer(
+  handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>,
+): Promise<NodeHandlerServer> {
+  const server = createServer((request, response) => {
+    void Promise.resolve(handler(request, response)).catch((error) => {
+      response.statusCode = 500;
+      response.end(error instanceof Error ? error.message : String(error));
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    await closeServer(server);
+    throw new Error("Unable to determine test HTTP server address");
+  }
+
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
     close: () => closeServer(server),
   };
 }

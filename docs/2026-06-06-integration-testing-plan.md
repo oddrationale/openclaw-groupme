@@ -22,14 +22,17 @@ Implemented in this branch:
 - Install smoke tests pack the plugin, install it into a clean temporary project with OpenClaw, and import the installed runtime/setup/channel/secret sidecars.
 - Plugin contract tests import the built entrypoints and assert the GroupMe channel capability, setup adapter, secret contract, and config schema runtime contract.
 - GroupMe HTTP boundary tests use local HTTP servers to verify request method, path, query, headers, and JSON/body shape for group listing, bot creation, outbound bot posts, and image uploads.
+- Webhook-flow integration tests mount the real webhook handler on a local HTTP server and move accepted callbacks through the real inbound/session/dispatch path with a fake OpenClaw runtime.
+- Onboarding HTTP-boundary tests run the real setup wizard adapter against fake GroupMe `/groups` and `/bots` endpoints.
+- OpenClaw CLI smoke tests pack the plugin, install it into an isolated temporary OpenClaw home, and inspect it through `openclaw plugins inspect --json --runtime groupme`.
 - Live smoke tests live under `tests/live/`, skip without credentials, and post to GroupMe only when explicitly run with the live secrets.
 - A manual-only `Live Smoke` GitHub Actions workflow runs `npm run test:live` with the `groupme-live-smoke` environment and a concurrency guard.
 
 Still good candidates for later expansion:
 
-- A deeper webhook-flow integration test that runs the full inbound path with a richer fake OpenClaw runtime instead of the existing focused unit-level webhook server tests.
-- A full onboarding wizard integration test backed by local fake HTTP endpoints rather than the current API-boundary tests and mocked unit onboarding tests.
-- OpenClaw CLI `plugins install` / `plugins inspect --json --runtime groupme` smoke tests once a stable isolated OpenClaw profile setup is documented for CI.
+- A richer reply-delivery webhook test that lets the fake OpenClaw runtime call the reply `deliver` callback against a fake GroupMe Bot API.
+- A `configureWhenConfigured` onboarding integration path for changing groups and registering a replacement bot.
+- Optional live image upload or bot creation/deletion smoke tests, kept separate from the basic outbound-send live check.
 
 ## Test Categories
 
@@ -90,6 +93,7 @@ tests/
   integration/
     package-contract.test.ts
     install-smoke.test.ts
+    openclaw-cli-smoke.test.ts
     plugin-contract.test.ts
     webhook-flow.test.ts
     groupme-http-boundary.test.ts

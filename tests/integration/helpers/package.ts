@@ -56,7 +56,9 @@ export function packDryRun(): PackDryRun {
     return dryRun;
   }
   buildPackage();
-  const output = runNpm(["pack", "--dry-run", "--json"]);
+  const output = runNpm(["pack", "--dry-run", "--json"], {
+    env: { npm_config_ignore_scripts: "true" },
+  });
   const parsed = parseNpmJsonArray<PackDryRun>(output);
   const [pack] = parsed;
   if (!pack) {
@@ -76,7 +78,9 @@ export function removeTempProject(path: string): void {
 
 export function packTarball(destination: string): string {
   buildPackage();
-  const output = runNpm(["pack", "--json", "--pack-destination", destination]);
+  const output = runNpm(["pack", "--json", "--pack-destination", destination], {
+    env: { npm_config_ignore_scripts: "true" },
+  });
   const parsed = parseNpmJsonArray<{ filename: string }>(output);
   const [pack] = parsed;
   if (!pack?.filename) {
