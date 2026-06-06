@@ -191,11 +191,31 @@ describe("setup.applyAccountConfig", () => {
     expect(section.webhookPath).toBe("/gm/hook");
   });
 
+  it("strips query tokens from webhookUrl before saving webhookPath", () => {
+    const result = setup.applyAccountConfig({
+      cfg: emptyCfg(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      input: { token: "bot123", webhookUrl: "https://bot.example.com/gm/hook?k=secret#frag" },
+    });
+    const section = gmSection(result);
+    expect(section.webhookPath).toBe("/gm/hook");
+  });
+
   it("sets webhookPath from webhookPath fallback", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: { token: "bot123", webhookPath: "/gm/hook" },
+    });
+    const section = gmSection(result);
+    expect(section.webhookPath).toBe("/gm/hook");
+  });
+
+  it("strips query tokens from webhookPath fallback before saving", () => {
+    const result = setup.applyAccountConfig({
+      cfg: emptyCfg(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      input: { token: "bot123", webhookPath: "/gm/hook?k=secret#frag" },
     });
     const section = gmSection(result);
     expect(section.webhookPath).toBe("/gm/hook");

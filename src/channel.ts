@@ -40,7 +40,7 @@ function normalizeWebhookPath(raw: string | undefined): string {
     const parsed = new URL(trimmed, "http://localhost");
     return parsed.pathname || "/groupme";
   } catch {
-    const noQuery = trimmed.split("?")[0] ?? trimmed;
+    const noQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
     if (!noQuery) {
       return "/groupme";
     }
@@ -101,9 +101,9 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       if (input.token?.trim()) updates.botId = input.token.trim();
       if (input.accessToken?.trim()) updates.accessToken = input.accessToken.trim();
       if (input.webhookUrl?.trim()) {
-        updates.webhookPath = input.webhookUrl.trim();
+        updates.webhookPath = normalizeWebhookPath(input.webhookUrl);
       } else if (input.webhookPath?.trim()) {
-        updates.webhookPath = input.webhookPath.trim();
+        updates.webhookPath = normalizeWebhookPath(input.webhookPath);
       }
 
       const section = (next.channels?.groupme ?? {}) as GroupMeConfig;

@@ -58,17 +58,49 @@ function applyGroupMeConfig(params: {
 
 function parsePublicDomain(raw: string): string {
   const trimmed = raw.trim();
+  let candidate = "";
   try {
     if (/^https?:\/\//i.test(trimmed)) {
       const url = new URL(trimmed);
-      return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+      candidate = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    } else {
+      const withoutLeadingSlashes = trimmed.replace(/^\/+/, "");
+      candidate = withoutLeadingSlashes.split(/[/?#]/, 1)[0] ?? "";
     }
-    const withoutLeadingSlashes = trimmed.replace(/^\/+/, "");
-    return withoutLeadingSlashes.split(/[/?#]/, 1)[0];
   } catch {
     const noScheme = trimmed.replace(/^https?:\/\//i, "");
-    return noScheme.split(/[/?#]/, 1)[0];
+    candidate = noScheme.split(/[/?#]/, 1)[0] ?? "";
   }
+
+  if (!candidate || /[\s/?#@]/.test(candidate)) {
+    return "";
+  }
+
+  try {
+    const url = new URL(`https://${candidate}`);
+    return url.hostname ? candidate : "";
+  } catch {
+    return "";
+  }
+}
+
+function validatePublicDomainInput(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "Public domain is required";
+  }
+  if (!parsePublicDomain(trimmed)) {
+    return "Public domain must be a valid host";
+  }
+  return undefined;
+}
+
+function requirePublicDomain(raw: string): string {
+  const publicDomain = parsePublicDomain(raw);
+  if (!publicDomain) {
+    throw new Error("Invalid public domain");
+  }
+  return publicDomain;
 }
 
 function generateCallbackSettings(): {
@@ -189,29 +221,15 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
     const publicDomainRaw = (
       await prompter.text({
         message: "Public domain (must be reachable — GroupMe will ping it)",
-        validate: (value) => {
-          const trimmed = value.trim();
-          if (!trimmed) {
-            return "Public domain is required";
-          }
-          const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-          if (!normalized) {
-            return "Public domain is required";
-          }
-          const parsed = parsePublicDomain(trimmed);
-          if (!parsed) {
-            return "Public domain is required";
-          }
-          return undefined;
-        },
+        validate: validatePublicDomainInput,
       })
     ).trim();
-    const publicDomain = parsePublicDomain(publicDomainRaw);
+    const publicDomain = requirePublicDomain(publicDomainRaw);
 
     const { webhookPath, callbackToken } = generateCallbackSettings();
     const pathSegment = webhookPath.split("/").pop() ?? webhookPath;
     await prompter.note(
-      `Generated webhook path: /groupme/${pathSegment}?k=***`,
+      `Generated webhook URL path and token placeholder: /groupme/${pathSegment}?k=***`,
       "Generated webhook settings",
     );
 
@@ -406,18 +424,10 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
           const domainRaw = (
             await prompter.text({
               message: "Public domain (required for bot registration)",
-              validate: (value) => {
-                const trimmed = value.trim();
-                if (!trimmed) return "Public domain is required";
-                const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-                if (!normalized) return "Public domain is required";
-                const parsed = parsePublicDomain(trimmed);
-                if (!parsed) return "Public domain is required";
-                return undefined;
-              },
+              validate: validatePublicDomainInput,
             })
           ).trim();
-          publicDomain = parsePublicDomain(domainRaw);
+          publicDomain = requirePublicDomain(domainRaw);
           updates.publicDomain = publicDomain;
         }
         let webhookPath = account.config.webhookPath?.trim();
@@ -498,19 +508,11 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         await prompter.text({
           message: "New public domain",
           initialValue: account.config.publicDomain ?? "",
-          validate: (value) => {
-            const trimmed = value.trim();
-            if (!trimmed) return "Public domain is required";
-            const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-            if (!normalized) return "Public domain is required";
-            const parsed = parsePublicDomain(trimmed);
-            if (!parsed) return "Public domain is required";
-            return undefined;
-          },
+          validate: validatePublicDomainInput,
         })
       ).trim();
 
-      const publicDomain = parsePublicDomain(newDomainRaw);
+      const publicDomain = requirePublicDomain(newDomainRaw);
       const next = applyGroupMeConfig({
         cfg,
         accountId,

@@ -292,7 +292,10 @@ describe("groupmeOnboardingAdapter.configure", () => {
       .mockImplementationOnce(
         async (params: { validate?: (value: string) => string | undefined }) => {
           expect(params.validate?.("")).toBe("Public domain is required");
-          expect(params.validate?.("https://")).toBe("Public domain is required");
+          expect(params.validate?.("https://")).toBe("Public domain must be a valid host");
+          expect(params.validate?.("https://broken host/path")).toBe(
+            "Public domain must be a valid host",
+          );
           return "https://bot.example.com/path?x=1";
         },
       );
@@ -311,6 +314,44 @@ describe("groupmeOnboardingAdapter.configure", () => {
 
     const section = result.cfg.channels?.groupme as Record<string, unknown>;
     expect(section.publicDomain).toBe("bot.example.com");
+  });
+
+  it("describes generated callback settings as a URL path with token placeholder", async () => {
+    fetchGroupsMock.mockResolvedValueOnce([group("g1", "Family")]);
+    createBotMock.mockResolvedValueOnce({
+      bot_id: "bot-123",
+      group_id: "g1",
+      name: "openclaw",
+      avatar_url: null,
+      callback_url: "https://bot.example.com/groupme/test",
+      dm_notification: false,
+      active: true,
+    });
+
+    const { prompter } = makePrompter();
+    (prompter.text as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("openclaw")
+      .mockResolvedValueOnce("access-token")
+      .mockResolvedValueOnce("bot.example.com");
+    (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("g1");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    await groupmeOnboardingAdapter.configure({
+      cfg: makeConfig(),
+      runtime: makeRuntime(),
+      prompter,
+      options: {},
+      accountOverrides: { groupme: DEFAULT_ACCOUNT_ID },
+      shouldPromptAccountIds: false,
+      forceAllowFrom: false,
+    });
+
+    expect(prompter.note).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^Generated webhook URL path and token placeholder: \/groupme\/[0-9a-f]{16}\?k=\*\*\*$/,
+      ),
+      "Generated webhook settings",
+    );
   });
 
   it("writes named account config during onboarding", async () => {
@@ -658,7 +699,8 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     (prompter.text as ReturnType<typeof vi.fn>).mockImplementationOnce(
       async (params: { validate?: (value: string) => string | undefined }) => {
         expect(params.validate?.("")).toBe("Public domain is required");
-        expect(params.validate?.("https://")).toBe("Public domain is required");
+        expect(params.validate?.("https://")).toBe("Public domain must be a valid host");
+        expect(params.validate?.("broken host")).toBe("Public domain must be a valid host");
         return "https://prompted.example.com/";
       },
     );
@@ -778,17 +820,14 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     expect(section.publicDomain).toBe("new-domain.example.com");
   });
 
-  it("normalizes public domain from malformed URL-like input", async () => {
+  it("rejects malformed public domain returned by a custom prompter", async () => {
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("update_domain");
     (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("https://broken host/path");
 
-    const result = await configureWhenConfigured(configureWhenConfiguredCtx(prompter));
-
-    expect(result).not.toBe("skip");
-    const { cfg } = result as { cfg: OpenClawConfig };
-    const section = cfg.channels?.groupme as Record<string, unknown>;
-    expect(section.publicDomain).toBe("broken host");
+    await expect(configureWhenConfigured(configureWhenConfiguredCtx(prompter))).rejects.toThrow(
+      "Invalid public domain",
+    );
   });
 
   it("rejects scheme-only input in update_domain via validation", async () => {
@@ -799,7 +838,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     textMock.mockImplementationOnce(
       async (params: { validate?: (value: string) => string | undefined }) => {
         const error = params.validate?.("https://");
-        expect(error).toBe("Public domain is required");
+        expect(error).toBe("Public domain must be a valid host");
         return "valid.example.com";
       },
     );

@@ -4,7 +4,7 @@ Thanks for helping improve `openclaw-groupme`.
 
 ## Setup
 
-Use Node.js 18 or newer. The CI matrix currently checks Node 18, 20, 22, and 24.
+Use Node.js 22.19.0 or newer. The CI matrix currently checks Node 22 and 24.
 
 ```bash
 npm ci

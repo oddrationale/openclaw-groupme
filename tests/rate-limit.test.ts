@@ -89,6 +89,21 @@ describe("GroupMeRateLimiter", () => {
     expect(second).toEqual({ kind: "rejected", scope: "concurrency" });
   });
 
+  it("normalizes NaN limits to active minimum thresholds", () => {
+    const limiter = new GroupMeRateLimiter({
+      windowMs: Number.NaN,
+      maxRequestsPerIp: 10,
+      maxRequestsPerSender: Number.NaN,
+      maxConcurrent: 10,
+    });
+
+    const first = limiter.evaluate({ ip: "1.2.3.4", senderId: "same" }, 1_000);
+    const second = limiter.evaluate({ ip: "1.2.3.5", senderId: "same" }, 1_000);
+
+    expect(first.kind).toBe("accepted");
+    expect(second).toEqual({ kind: "rejected", scope: "sender" });
+  });
+
   it("releases accepted requests only once", () => {
     const limiter = new GroupMeRateLimiter({
       windowMs: 60_000,
