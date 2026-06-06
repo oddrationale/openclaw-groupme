@@ -2,11 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import { BlockList, isIP } from "node:net";
 import { readTrimmed } from "./accounts.js";
-import type {
-  CallbackAuthResult,
-  GroupMeAccountConfig,
-  GroupMeSecurityConfig,
-} from "./types.js";
+import type { CallbackAuthResult, GroupMeAccountConfig, GroupMeSecurityConfig } from "./types.js";
 
 type ProxyRule = {
   kind: "cidr" | "ip";
@@ -150,10 +146,7 @@ function normalizeHost(value: string): string {
     return "";
   }
   const maybeWithoutPort = host.split(":");
-  if (
-    maybeWithoutPort.length === 2 &&
-    /^\d+$/.test(maybeWithoutPort[1] ?? "")
-  ) {
+  if (maybeWithoutPort.length === 2 && /^\d+$/.test(maybeWithoutPort[1] ?? "")) {
     host = maybeWithoutPort[0] ?? "";
   }
   return host.trim();
@@ -174,8 +167,7 @@ function parseProxyRules(entries: string[]): ProxyRule[] {
         continue;
       }
       const prefix = Number(prefixRaw);
-      const maxPrefix =
-        ipVersion === 4 ? IPV4_MAX_CIDR_PREFIX : IPV6_MAX_CIDR_PREFIX;
+      const maxPrefix = ipVersion === 4 ? IPV4_MAX_CIDR_PREFIX : IPV6_MAX_CIDR_PREFIX;
       if (!Number.isInteger(prefix) || prefix < 0 || prefix > maxPrefix) {
         continue;
       }
@@ -229,24 +221,11 @@ function createTrustedProxyMatcher(entries: string[]): (ip: string) => boolean {
   };
 }
 
-function extractCallbackToken(callbackUrl: string | undefined): string {
-  const raw = callbackUrl?.trim() ?? "";
-  if (!raw) {
-    return "";
-  }
-  try {
-    const parsed = new URL(raw, "http://localhost");
-    return parsed.searchParams.get("k")?.trim() ?? "";
-  } catch {
-    throw new Error(`Invalid callbackUrl: unable to parse "${raw}"`);
-  }
-}
-
 export function resolveGroupMeSecurity(
   accountConfig: GroupMeAccountConfig,
 ): ResolvedGroupMeSecurity {
   const security = (accountConfig.security ?? {}) as GroupMeSecurityConfig;
-  const callbackToken = extractCallbackToken(accountConfig.callbackUrl);
+  const callbackToken = readTrimmed(accountConfig.callbackToken) ?? "";
   const groupId = readTrimmed(accountConfig.groupId) ?? "";
 
   const allowedMimePrefixes = Array.isArray(security.media?.allowedMimePrefixes)
@@ -285,8 +264,7 @@ export function resolveGroupMeSecurity(
       allowPrivateNetworks: security.media?.allowPrivateNetworks === true,
       maxDownloadBytes: positiveIntOrDefault(security.media?.maxDownloadBytes, 15 * 1024 * 1024),
       requestTimeoutMs: positiveIntOrDefault(security.media?.requestTimeoutMs, 10_000),
-      allowedMimePrefixes:
-        allowedMimePrefixes.length > 0 ? allowedMimePrefixes : ["image/"],
+      allowedMimePrefixes: allowedMimePrefixes.length > 0 ? allowedMimePrefixes : ["image/"],
     },
     logging: {
       redactSecrets: security.logging?.redactSecrets !== false,
@@ -294,8 +272,7 @@ export function resolveGroupMeSecurity(
     },
     commandBypass: {
       requireAllowFrom: security.commandBypass?.requireAllowFrom !== false,
-      requireMentionForCommands:
-        security.commandBypass?.requireMentionForCommands === true,
+      requireMentionForCommands: security.commandBypass?.requireMentionForCommands === true,
     },
     proxy: {
       enabled: security.proxy != null,
@@ -343,10 +320,7 @@ export function checkGroupBinding(params: {
   return { ok: true };
 }
 
-export function redactCallbackUrl(
-  raw: string,
-  security: ResolvedGroupMeSecurity,
-): string {
+export function redactWebhookUrl(raw: string, security: ResolvedGroupMeSecurity): string {
   if (!security.callbackToken) {
     return raw;
   }
@@ -371,9 +345,7 @@ export function validateProxyRequest(params: {
 }): GroupMeProxyValidation {
   const remoteIp = normalizeIpCandidate(params.remoteAddress) || "unknown";
   const proxyConfig = params.security.proxy;
-  const defaultProto: "http" | "https" = params.socketEncrypted
-    ? "https"
-    : "http";
+  const defaultProto: "http" | "https" = params.socketEncrypted ? "https" : "http";
   const hostHeader = normalizeHost(getHeaderValue(params.headers, "host"));
 
   if (!proxyConfig.enabled) {
@@ -391,32 +363,22 @@ export function validateProxyRequest(params: {
   }
 
   const fromTrustedProxy =
-    proxyConfig.trustedProxyCidrs.length > 0 &&
-    proxyConfig.isTrustedProxy(remoteIp);
+    proxyConfig.trustedProxyCidrs.length > 0 && proxyConfig.isTrustedProxy(remoteIp);
 
-  const forwardedFor = normalizeIpCandidate(
-    getHeaderValue(params.headers, "x-forwarded-for"),
-  );
-  const forwardedHost = normalizeHost(
-    getHeaderValue(params.headers, "x-forwarded-host"),
-  );
+  const forwardedFor = normalizeIpCandidate(getHeaderValue(params.headers, "x-forwarded-for"));
+  const forwardedHost = normalizeHost(getHeaderValue(params.headers, "x-forwarded-host"));
   const forwardedProtoRaw = getHeaderValue(params.headers, "x-forwarded-proto")
     .split(",")[0]
     ?.trim()
     .toLowerCase();
   const forwardedProto: "http" | "https" | null =
-    forwardedProtoRaw === "http" || forwardedProtoRaw === "https"
-      ? forwardedProtoRaw
-      : null;
+    forwardedProtoRaw === "http" || forwardedProtoRaw === "https" ? forwardedProtoRaw : null;
 
   const usingForwardedHeaders =
     fromTrustedProxy && Boolean(forwardedFor || forwardedHost || forwardedProto);
-  const effectiveClientIp =
-    usingForwardedHeaders && forwardedFor ? forwardedFor : remoteIp;
-  const effectiveHost =
-    usingForwardedHeaders && forwardedHost ? forwardedHost : hostHeader;
-  const effectiveProto =
-    usingForwardedHeaders && forwardedProto ? forwardedProto : defaultProto;
+  const effectiveClientIp = usingForwardedHeaders && forwardedFor ? forwardedFor : remoteIp;
+  const effectiveHost = usingForwardedHeaders && forwardedHost ? forwardedHost : hostHeader;
+  const effectiveProto = usingForwardedHeaders && forwardedProto ? forwardedProto : defaultProto;
 
   if (!effectiveHost) {
     return {

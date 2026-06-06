@@ -2,24 +2,23 @@
   "id": "groupme",
   "name": "GroupMe",
   "description": "GroupMe channel plugin for OpenClaw.",
-  "channels": [
-    "groupme"
-  ],
+  "channels": ["groupme"],
   "activation": {
-    "onStartup": true,
-    "onChannels": [
-      "groupme"
-    ]
+    "onStartup": false,
+    "onChannels": ["groupme"]
+  },
+  "channelConfigs": {
+    "groupme": {
+      "label": "GroupMe",
+      "description": "GroupMe Bot API webhook integration for group chats.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
   },
   "channelEnvVars": {
-    "groupme": [
-      "GROUPME_BOT_ID",
-      "GROUPME_ACCESS_TOKEN",
-      "GROUPME_BOT_NAME",
-      "GROUPME_GROUP_ID",
-      "GROUPME_PUBLIC_DOMAIN",
-      "GROUPME_CALLBACK_URL"
-    ]
+    "groupme": ["GROUPME_BOT_ID", "GROUPME_ACCESS_TOKEN", "GROUPME_CALLBACK_TOKEN"]
   },
   "configSchema": {
     "type": "object",

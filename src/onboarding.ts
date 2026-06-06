@@ -1,12 +1,25 @@
 import { randomBytes } from "node:crypto";
-import type {
-  OpenClawConfig,
-} from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import type { ChannelSetupWizardAdapter } from "openclaw/plugin-sdk/setup";
 import { resolveGroupMeAccount } from "./accounts.js";
 import { createBot, fetchGroups } from "./groupme-api.js";
 import type { CoreConfig, GroupMeConfig } from "./types.js";
+
+function hasSecretInput(value: unknown): boolean {
+  if (typeof value === "string") {
+    return Boolean(value.trim());
+  }
+  return Boolean(value && typeof value === "object");
+}
+
+function readSecretInputString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
 
 function applyGroupMeConfig(params: {
   cfg: OpenClawConfig;
@@ -58,17 +71,33 @@ function parsePublicDomain(raw: string): string {
       return url.port ? `${url.hostname}:${url.port}` : url.hostname;
     }
     const withoutLeadingSlashes = trimmed.replace(/^\/+/, "");
-    return withoutLeadingSlashes.split(/[\/?#]/, 1)[0];
+    return withoutLeadingSlashes.split(/[/?#]/, 1)[0];
   } catch {
     const noScheme = trimmed.replace(/^https?:\/\//i, "");
-    return noScheme.split(/[\/?#]/, 1)[0];
+    return noScheme.split(/[/?#]/, 1)[0];
   }
 }
 
-function generateCallbackUrl(): string {
+function generateCallbackSettings(): {
+  webhookPath: string;
+  callbackToken: string;
+} {
   const pathSegment = randomBytes(8).toString("hex");
-  const callbackToken = randomBytes(32).toString("hex");
-  return `/groupme/${pathSegment}?k=${callbackToken}`;
+  return {
+    webhookPath: `/groupme/${pathSegment}`,
+    callbackToken: randomBytes(32).toString("hex"),
+  };
+}
+
+function buildPublicCallbackUrl(params: {
+  publicDomain: string;
+  webhookPath: string;
+  callbackToken: string;
+}): string {
+  const path = params.webhookPath.startsWith("/") ? params.webhookPath : `/${params.webhookPath}`;
+  const url = new URL(`https://${params.publicDomain}${path}`);
+  url.searchParams.set("k", params.callbackToken);
+  return url.toString();
 }
 
 function redactMiddle(value: string): string {
@@ -88,7 +117,8 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
     });
 
     const configured = account.configured;
-    const callbackUrlConfigured = Boolean(account.config.callbackUrl?.trim());
+    const webhookPathConfigured = Boolean(account.config.webhookPath?.trim());
+    const callbackTokenConfigured = hasSecretInput(account.config.callbackToken);
     const groupIdConfigured = Boolean(account.config.groupId?.trim());
     const publicDomainConfigured = Boolean(account.config.publicDomain?.trim());
 
@@ -97,15 +127,12 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
       configured,
       statusLines: [
         `GroupMe (${accountId}): ${configured ? "configured" : "needs access token"}`,
-        account.config.accessToken?.trim()
+        hasSecretInput(account.config.accessToken)
           ? "Access token configured"
           : "Access token missing",
-        callbackUrlConfigured
-          ? "Webhook callback URL configured"
-          : "Webhook callback URL missing",
-        publicDomainConfigured
-          ? "Public domain configured"
-          : "Public domain missing",
+        webhookPathConfigured ? "Webhook path configured" : "Webhook path missing",
+        callbackTokenConfigured ? "Callback token configured" : "Callback token missing",
+        publicDomainConfigured ? "Public domain configured" : "Public domain missing",
         groupIdConfigured ? "Group ID configured" : "Group ID missing",
       ],
       selectionHint: configured ? "configured" : "needs access token",
@@ -126,8 +153,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
     const accessToken = (
       await prompter.text({
         message: "GroupMe access token",
-        validate: (value) =>
-          value.trim() ? undefined : "Access token is required",
+        validate: (value) => (value.trim() ? undefined : "Access token is required"),
       })
     ).trim();
 
@@ -175,9 +201,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
           if (!trimmed) {
             return "Public domain is required";
           }
-          const normalized = trimmed
-            .replace(/^https?:\/\//, "")
-            .replace(/\/+$/, "");
+          const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
           if (!normalized) {
             return "Public domain is required";
           }
@@ -191,11 +215,11 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
     ).trim();
     const publicDomain = parsePublicDomain(publicDomainRaw);
 
-    const callbackUrl = generateCallbackUrl();
-    const pathSegment = callbackUrl.split("?")[0].split("/").pop()!;
+    const { webhookPath, callbackToken } = generateCallbackSettings();
+    const pathSegment = webhookPath.split("/").pop() ?? webhookPath;
     await prompter.note(
-      `Generated webhook callback URL: /groupme/${pathSegment}?k=***`,
-      "Generated callback URL",
+      `Generated webhook path: /groupme/${pathSegment}?k=***`,
+      "Generated webhook settings",
     );
 
     const botSpin = prompter.progress("Registering bot with GroupMe...");
@@ -205,7 +229,11 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         accessToken,
         name: botName,
         groupId,
-        callbackUrl: `https://${publicDomain}${callbackUrl}`,
+        callbackUrl: buildPublicCallbackUrl({
+          publicDomain,
+          webhookPath,
+          callbackToken,
+        }),
       });
       botId = bot.bot_id;
       botSpin.stop("Bot registered");
@@ -235,7 +263,8 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         botId,
         groupId,
         publicDomain,
-        callbackUrl,
+        webhookPath,
+        callbackToken,
         requireMention,
       },
     });
@@ -254,12 +283,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
       accountId,
     };
   },
-  configureWhenConfigured: async ({
-    cfg,
-    prompter,
-    runtime,
-    accountOverrides,
-  }) => {
+  configureWhenConfigured: async ({ cfg, prompter, runtime, accountOverrides }) => {
     const accountId = accountOverrides.groupme ?? DEFAULT_ACCOUNT_ID;
     const account = resolveGroupMeAccount({
       cfg: cfg as CoreConfig,
@@ -272,7 +296,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         { value: "skip", label: "Skip", hint: "no changes" },
         { value: "rotate_token", label: "Rotate access token" },
         { value: "change_group", label: "Change group" },
-        { value: "regen_callback", label: "Regenerate callback URL" },
+        { value: "regen_callback", label: "Regenerate webhook settings" },
         { value: "toggle_mention", label: "Toggle requireMention" },
         { value: "update_domain", label: "Update public domain" },
         { value: "full_setup", label: "Full re-setup", hint: "start from scratch" },
@@ -299,8 +323,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
       const newToken = (
         await prompter.text({
           message: "New GroupMe access token",
-          validate: (value) =>
-            value.trim() ? undefined : "Access token is required",
+          validate: (value) => (value.trim() ? undefined : "Access token is required"),
         })
       ).trim();
 
@@ -330,7 +353,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
       const existingToken = account.accessToken;
       if (!existingToken) {
         await prompter.note(
-          "No access token configured. Use \"Rotate access token\" first.",
+          'No access token configured. Use "Rotate access token" first.',
           "Missing token",
         );
         return "skip";
@@ -351,10 +374,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
 
       if (groups.length === 0) {
         spin.stop("No groups found");
-        await prompter.note(
-          "No groups found. Create or join a GroupMe group first.",
-          "No groups",
-        );
+        await prompter.note("No groups found. Create or join a GroupMe group first.", "No groups");
         return "skip";
       }
       spin.stop(`Found ${groups.length} groups`);
@@ -379,10 +399,8 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
       if (!registerNew) {
         const newBotId = (
           await prompter.text({
-            message:
-              "Bot ID for the new group (existing bot won't work in a different group)",
-            validate: (value) =>
-              value.trim() ? undefined : "Bot ID is required",
+            message: "Bot ID for the new group (existing bot won't work in a different group)",
+            validate: (value) => (value.trim() ? undefined : "Bot ID is required"),
           })
         ).trim();
         updates.botId = newBotId;
@@ -398,9 +416,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
               validate: (value) => {
                 const trimmed = value.trim();
                 if (!trimmed) return "Public domain is required";
-                const normalized = trimmed
-                  .replace(/^https?:\/\//, "")
-                  .replace(/\/+$/, "");
+                const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
                 if (!normalized) return "Public domain is required";
                 const parsed = parsePublicDomain(trimmed);
                 if (!parsed) return "Public domain is required";
@@ -411,13 +427,15 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
           publicDomain = parsePublicDomain(domainRaw);
           updates.publicDomain = publicDomain;
         }
-        let rawCallbackUrl = account.config.callbackUrl;
-        if (!rawCallbackUrl) {
-          rawCallbackUrl = generateCallbackUrl();
-          updates.callbackUrl = rawCallbackUrl;
+        let webhookPath = account.config.webhookPath?.trim();
+        let callbackToken = readSecretInputString(account.config.callbackToken);
+        if (!webhookPath || !callbackToken) {
+          const generated = generateCallbackSettings();
+          webhookPath = webhookPath || generated.webhookPath;
+          callbackToken = callbackToken || generated.callbackToken;
+          updates.webhookPath = webhookPath;
+          updates.callbackToken = callbackToken;
         }
-        const parsedCallback = new URL(rawCallbackUrl, "http://localhost");
-        const callbackPath = `${parsedCallback.pathname}${parsedCallback.search}`;
 
         const botSpin = prompter.progress("Registering bot with GroupMe...");
         try {
@@ -425,18 +443,18 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
             accessToken: existingToken,
             name: botName,
             groupId: newGroupId,
-            callbackUrl: `https://${publicDomain}${callbackPath}`,
+            callbackUrl: buildPublicCallbackUrl({
+              publicDomain,
+              webhookPath,
+              callbackToken,
+            }),
           });
           updates.botId = bot.bot_id;
           botSpin.stop("Bot registered");
         } catch (error) {
           botSpin.stop("Failed");
-          const detail =
-            error instanceof Error ? `\n\nDetails: ${error.message}` : "";
-          await prompter.note(
-            `Failed to register bot.${detail}`,
-            "Bot registration failed",
-          );
+          const detail = error instanceof Error ? `\n\nDetails: ${error.message}` : "";
+          await prompter.note(`Failed to register bot.${detail}`, "Bot registration failed");
           throw new Error("Failed to register GroupMe bot", {
             cause: error instanceof Error ? error : undefined,
           });
@@ -452,18 +470,18 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
     }
 
     if (action === "regen_callback") {
-      const callbackUrl = generateCallbackUrl();
+      const { webhookPath, callbackToken } = generateCallbackSettings();
       const next = applyGroupMeConfig({
         cfg,
         accountId,
-        updates: { callbackUrl },
+        updates: { webhookPath, callbackToken },
       });
       await prompter.note(
         [
-          "Callback URL regenerated.",
+          "Webhook path and callback token regenerated.",
           "Remember to update your GroupMe bot settings or re-register the bot.",
         ].join("\n"),
-        "Callback URL updated",
+        "Webhook settings updated",
       );
       return { cfg: next, accountId };
     }
@@ -490,9 +508,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
           validate: (value) => {
             const trimmed = value.trim();
             if (!trimmed) return "Public domain is required";
-            const normalized = trimmed
-              .replace(/^https?:\/\//, "")
-              .replace(/\/+$/, "");
+            const normalized = trimmed.replace(/^https?:\/\//, "").replace(/\/+$/, "");
             if (!normalized) return "Public domain is required";
             const parsed = parsePublicDomain(trimmed);
             if (!parsed) return "Public domain is required";
@@ -507,10 +523,7 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         accountId,
         updates: { publicDomain },
       });
-      await prompter.note(
-        `Public domain updated to "${publicDomain}".`,
-        "Domain updated",
-      );
+      await prompter.note(`Public domain updated to "${publicDomain}".`, "Domain updated");
       return { cfg: next, accountId };
     }
 

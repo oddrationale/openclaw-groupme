@@ -1,4 +1,10 @@
-export function normalizeStringId(raw: string | number): string | undefined {
+export function normalizeStringId(raw: unknown): string | undefined {
+  if (typeof raw !== "string" && typeof raw !== "number") {
+    return undefined;
+  }
+  if (typeof raw === "number" && !Number.isFinite(raw)) {
+    return undefined;
+  }
   const normalized = String(raw).trim();
   return normalized || undefined;
 }

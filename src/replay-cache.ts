@@ -44,10 +44,7 @@ export class GroupMeReplayCache {
 
   private evictOverflow() {
     while (this.entries.size > this.maxEntries) {
-      const oldest = this.entries.keys().next().value as string | undefined;
-      if (!oldest) {
-        return;
-      }
+      const oldest = this.entries.keys().next().value as string;
       this.entries.delete(oldest);
     }
   }

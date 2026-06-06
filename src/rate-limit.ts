@@ -43,10 +43,7 @@ export class GroupMeRateLimiter {
   }) {
     this.windowMs = Math.max(1, Math.floor(params.windowMs));
     this.maxRequestsPerIp = Math.max(1, Math.floor(params.maxRequestsPerIp));
-    this.maxRequestsPerSender = Math.max(
-      1,
-      Math.floor(params.maxRequestsPerSender),
-    );
+    this.maxRequestsPerSender = Math.max(1, Math.floor(params.maxRequestsPerSender));
     this.maxConcurrent = Math.max(1, Math.floor(params.maxConcurrent));
     this.maxTrackedKeys = DEFAULT_MAX_TRACKED_KEYS;
   }
@@ -118,10 +115,7 @@ export class GroupMeRateLimiter {
 
   private capStateSize(state: SlidingWindowState) {
     while (state.size > this.maxTrackedKeys) {
-      const oldest = state.keys().next().value as string | undefined;
-      if (!oldest) {
-        return;
-      }
+      const oldest = state.keys().next().value as string;
       state.delete(oldest);
     }
   }

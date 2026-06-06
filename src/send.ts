@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { SsrFBlockedError, fetchWithSsrFGuard } from "openclaw/plugin-sdk/infra-runtime";
-import type { CoreConfig } from "./types.js";
+import { fetchWithSsrFGuard, SsrFBlockedError } from "openclaw/plugin-sdk/infra-runtime";
 import { resolveGroupMeAccount } from "./accounts.js";
 import { getGroupMeRuntime } from "./runtime.js";
 import { resolveGroupMeSecurity } from "./security.js";
+import type { CoreConfig } from "./types.js";
 
 export const GROUPME_API_BASE = "https://api.groupme.com/v3";
 export const GROUPME_IMAGE_SERVICE = "https://image.groupme.com";
@@ -51,9 +51,7 @@ export async function sendGroupMeMessage(params: {
   });
 
   if (!response.ok) {
-    throw new Error(
-      `GroupMe API error: ${response.status} ${response.statusText}`,
-    );
+    throw new Error(`GroupMe API error: ${response.status} ${response.statusText}`);
   }
 
   return {
@@ -63,8 +61,7 @@ export async function sendGroupMeMessage(params: {
 }
 
 function extractPictureUrl(value: unknown): string | null {
-  const url = (value as { payload?: { picture_url?: unknown } })?.payload
-    ?.picture_url;
+  const url = (value as { payload?: { picture_url?: unknown } })?.payload?.picture_url;
   if (typeof url !== "string") return null;
   return url.trim() || null;
 }
@@ -106,10 +103,7 @@ async function downloadRemoteMedia(params: {
   allowedMimePrefixes: string[];
   fetchFn?: FetchLike;
 }): Promise<{ data: Buffer; contentType: string }> {
-  const timedFetch = wrapFetchWithTimeout(
-    params.fetchFn,
-    params.requestTimeoutMs,
-  );
+  const timedFetch = wrapFetchWithTimeout(params.fetchFn, params.requestTimeoutMs);
 
   try {
     const runtimeFetcher = getGroupMeRuntime().channel.media
@@ -152,16 +146,11 @@ async function downloadRemoteMedia(params: {
     try {
       const response = guarded.response;
       if (!response.ok) {
-        throw new Error(
-          `GroupMe media download failed: ${response.status} ${response.statusText}`,
-        );
+        throw new Error(`GroupMe media download failed: ${response.status} ${response.statusText}`);
       }
 
       const contentLength = Number(response.headers.get("content-length"));
-      if (
-        Number.isFinite(contentLength) &&
-        contentLength > params.maxDownloadBytes
-      ) {
+      if (Number.isFinite(contentLength) && contentLength > params.maxDownloadBytes) {
         throw new Error(
           `GroupMe media download exceeds maxDownloadBytes (${contentLength} > ${params.maxDownloadBytes})`,
         );
@@ -172,10 +161,7 @@ async function downloadRemoteMedia(params: {
         allowedMimePrefixes: params.allowedMimePrefixes,
       });
 
-      const data = await readResponseBodyWithLimit(
-        response,
-        params.maxDownloadBytes,
-      );
+      const data = await readResponseBodyWithLimit(response, params.maxDownloadBytes);
       return { data, contentType };
     } finally {
       await guarded.release();
@@ -188,10 +174,7 @@ async function downloadRemoteMedia(params: {
   }
 }
 
-function wrapFetchWithTimeout(
-  fetchFn: FetchLike | undefined,
-  timeoutMs: number,
-): FetchLike {
+function wrapFetchWithTimeout(fetchFn: FetchLike | undefined, timeoutMs: number): FetchLike {
   const base = fetchFn ?? fetch;
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const controller = new AbortController();
@@ -227,15 +210,10 @@ function enforceMimePolicy(params: {
   contentType: string | undefined;
   allowedMimePrefixes: string[];
 }): string {
-  const contentType = (params.contentType ?? "")
-    .split(";")[0]
-    ?.trim()
-    .toLowerCase();
+  const contentType = (params.contentType ?? "").split(";")[0]?.trim().toLowerCase();
   if (
     !contentType ||
-    !params.allowedMimePrefixes.some((prefix) =>
-      contentType.startsWith(prefix.toLowerCase()),
-    )
+    !params.allowedMimePrefixes.some((prefix) => contentType.startsWith(prefix.toLowerCase()))
   ) {
     throw new Error(
       `GroupMe media download blocked by MIME policy (${contentType || "missing content-type"})`,

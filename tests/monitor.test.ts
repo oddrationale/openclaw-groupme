@@ -5,9 +5,7 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { describe, expect, it, vi } from "vitest";
 import type { CoreConfig, ResolvedGroupMeAccount } from "../src/types.js";
 
-const handleGroupMeInboundMock = vi.hoisted(() =>
-  vi.fn(async (_params: unknown) => undefined),
-);
+const handleGroupMeInboundMock = vi.hoisted(() => vi.fn(async (_params: unknown) => undefined));
 
 vi.mock("../src/inbound.js", () => ({
   handleGroupMeInbound: handleGroupMeInboundMock,
@@ -77,9 +75,7 @@ function buildRuntime(): RuntimeEnv {
   };
 }
 
-function buildAccount(
-  overrides?: Partial<ResolvedGroupMeAccount>,
-): ResolvedGroupMeAccount {
+function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
   return {
     accountId: "default",
     enabled: true,
@@ -90,7 +86,8 @@ function buildAccount(
       botId: "bot-1",
       accessToken: "token-1",
       groupId: "456",
-      callbackUrl: "/groupme?k=secret-token",
+      webhookPath: "/groupme",
+      callbackToken: "secret-token",
       security: {
         replay: {
           ttlSeconds: 600,
@@ -191,6 +188,58 @@ describe("createGroupMeWebhookHandler", () => {
     });
   });
 
+  it("returns 400 for structurally invalid callback payloads", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ nope: true }),
+        });
+        expect(response.status).toBe(400);
+        expect(await response.text()).toBe("Bad Request");
+        expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  it("acks ignored GroupMe bot, system, and empty callbacks without dispatching", async () => {
+    handleGroupMeInboundMock.mockClear();
+    const runtime = buildRuntime();
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        for (const payload of [
+          buildPayload({ id: "bot-msg", source_guid: "bot-guid", sender_type: "bot" }),
+          buildPayload({ id: "system-msg", source_guid: "system-guid", system: true }),
+          buildPayload({ id: "empty-msg", source_guid: "empty-guid", text: "  " }),
+        ]) {
+          const response = await fetch(webhookUrl(baseUrl), {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          expect(response.status).toBe(200);
+          expect(await response.text()).toBe("ok");
+        }
+        expect(handleGroupMeInboundMock).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   it("acknowledges authenticated payload and dispatches inbound", async () => {
     handleGroupMeInboundMock.mockClear();
     const runtime = buildRuntime();
@@ -217,6 +266,49 @@ describe("createGroupMeWebhookHandler", () => {
           | undefined;
         expect(call?.historyLimit).toBe(20);
         expect(call?.groupHistories).toBeInstanceOf(Map);
+      });
+    });
+  });
+
+  it("logs a warning when no groupId is configured", () => {
+    const runtime = buildRuntime();
+    createGroupMeWebhookHandler({
+      account: buildAccount({
+        config: {
+          ...buildAccount().config,
+          groupId: "",
+        },
+      }),
+      config,
+      runtime,
+    });
+
+    expect(runtime.error).toHaveBeenCalledWith(expect.stringContaining("no groupId configured"));
+  });
+
+  it("logs asynchronous inbound processing failures after acknowledging", async () => {
+    handleGroupMeInboundMock.mockClear();
+    handleGroupMeInboundMock.mockRejectedValueOnce(new Error("agent failed"));
+    const runtime = buildRuntime();
+    const handler = createGroupMeWebhookHandler({
+      account: buildAccount(),
+      config,
+      runtime,
+    });
+
+    await runIfServerAllowed(async () => {
+      await withServer(handler, async (baseUrl) => {
+        const response = await fetch(webhookUrl(baseUrl), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(buildPayload()),
+        });
+        expect(response.status).toBe(200);
+        await vi.waitFor(() => {
+          expect(runtime.error).toHaveBeenCalledWith(
+            expect.stringContaining("inbound processing failed"),
+          );
+        });
       });
     });
   });
@@ -304,16 +396,12 @@ describe("createGroupMeWebhookHandler", () => {
         const first = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(
-            buildPayload({ id: "rate-1", source_guid: "rate-guid-1" }),
-          ),
+          body: JSON.stringify(buildPayload({ id: "rate-1", source_guid: "rate-guid-1" })),
         });
         const second = await fetch(webhookUrl(baseUrl), {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(
-            buildPayload({ id: "rate-2", source_guid: "rate-guid-2" }),
-          ),
+          body: JSON.stringify(buildPayload({ id: "rate-2", source_guid: "rate-guid-2" })),
         });
         expect(first.status).toBe(200);
         expect(second.status).toBe(429);

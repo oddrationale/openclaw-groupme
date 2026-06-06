@@ -9,20 +9,16 @@ import { resolveGroupMeHistoryLimit } from "./history.js";
 import { handleGroupMeInbound } from "./inbound.js";
 import { parseGroupMeCallback, shouldProcessCallback } from "./parse.js";
 import { GroupMeRateLimiter } from "./rate-limit.js";
-import { GroupMeReplayCache, buildReplayKey } from "./replay-cache.js";
+import { buildReplayKey, GroupMeReplayCache } from "./replay-cache.js";
 import {
   checkGroupBinding,
-  redactCallbackUrl,
+  type ResolvedGroupMeSecurity,
+  redactWebhookUrl,
   resolveGroupMeSecurity,
   validateProxyRequest,
-  type ResolvedGroupMeSecurity,
   verifyCallbackAuth,
 } from "./security.js";
-import type {
-  CoreConfig,
-  ResolvedGroupMeAccount,
-  WebhookDecision,
-} from "./types.js";
+import type { CoreConfig, ResolvedGroupMeAccount, WebhookDecision } from "./types.js";
 
 // GroupMe callbacks are small JSON payloads; use tighter limits than the SDK
 // defaults (DEFAULT_WEBHOOK_MAX_BODY_BYTES = 1 MB, DEFAULT_WEBHOOK_BODY_TIMEOUT_MS = 30 s).
@@ -33,10 +29,7 @@ export type GroupMeWebhookHandlerParams = {
   account: ResolvedGroupMeAccount;
   config: CoreConfig;
   runtime: RuntimeEnv;
-  statusSink?: (patch: {
-    lastInboundAt?: number;
-    lastOutboundAt?: number;
-  }) => void;
+  statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
 };
 
 function rejectDecision(params: {
@@ -90,10 +83,7 @@ function logWebhookRejection(params: {
     return;
   }
   const url = params.security.logging.redactSecrets
-    ? redactCallbackUrl(
-        `${params.reqUrl.pathname}${params.reqUrl.search}`,
-        params.security,
-      )
+    ? redactWebhookUrl(`${params.reqUrl.pathname}${params.reqUrl.search}`, params.security)
     : `${params.reqUrl.pathname}${params.reqUrl.search}`;
   const line = `groupme: webhook rejected (${params.decision.reason}) status=${params.decision.status} url=${url}`;
   if (params.decision.logLevel === "warn") {
@@ -227,9 +217,7 @@ export function createGroupMeWebhookHandler(
   params: GroupMeWebhookHandlerParams,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const groupHistories = new Map<string, HistoryEntry[]>();
-  const historyLimit = resolveGroupMeHistoryLimit(
-    params.account.config.historyLimit,
-  );
+  const historyLimit = resolveGroupMeHistoryLimit(params.account.config.historyLimit);
   const security = resolveGroupMeSecurity(params.account.config);
   if (!security.groupId) {
     params.runtime.error?.(
@@ -280,9 +268,7 @@ export function createGroupMeWebhookHandler(
         }
         const requestBodyErrorCode = asRequestBodyErrorCode(code);
         if (requestBodyErrorCode) {
-          res.end(
-            requestBodyErrorToText(requestBodyErrorCode),
-          );
+          res.end(requestBodyErrorToText(requestBodyErrorCode));
           return;
         }
       }
@@ -304,9 +290,7 @@ export function createGroupMeWebhookHandler(
       historyLimit,
     })
       .catch((err) => {
-        params.runtime.error?.(
-          `groupme: inbound processing failed: ${String(err)}`,
-        );
+        params.runtime.error?.(`groupme: inbound processing failed: ${String(err)}`);
       })
       .finally(() => {
         release();

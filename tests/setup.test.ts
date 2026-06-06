@@ -1,10 +1,33 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
+import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import { describe, expect, it } from "vitest";
 import { groupmePlugin } from "../src/channel.js";
 import type { GroupMeConfig } from "../src/types.js";
 
-const setup = groupmePlugin.setup!;
+function requireSetup(): ChannelSetupAdapter {
+  if (!groupmePlugin.setup) {
+    throw new Error("expected GroupMe setup adapter");
+  }
+  return groupmePlugin.setup;
+}
+
+const setup = requireSetup();
+
+function requireSetupFn<TKey extends keyof ChannelSetupAdapter>(
+  key: TKey,
+): NonNullable<ChannelSetupAdapter[TKey]> {
+  const fn = setup[key];
+  if (!fn) {
+    throw new Error(`expected setup.${String(key)}`);
+  }
+  return fn as NonNullable<ChannelSetupAdapter[TKey]>;
+}
+
+const validateInput = requireSetupFn("validateInput");
+const resolveAccountId = requireSetupFn("resolveAccountId");
+const applyAccountName = requireSetupFn("applyAccountName");
+const resolveBindingAccountId = requireSetupFn("resolveBindingAccountId");
 
 function emptyCfg(): OpenClawConfig {
   return { channels: {} } as OpenClawConfig;
@@ -20,7 +43,7 @@ function gmSection(cfg: OpenClawConfig): GroupMeConfig {
 
 describe("setup.validateInput", () => {
   it("rejects missing token", () => {
-    const result = setup.validateInput!({
+    const result = validateInput({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: {},
@@ -30,7 +53,7 @@ describe("setup.validateInput", () => {
   });
 
   it("rejects blank token", () => {
-    const result = setup.validateInput!({
+    const result = validateInput({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: { token: "   " },
@@ -39,7 +62,7 @@ describe("setup.validateInput", () => {
   });
 
   it("accepts valid token", () => {
-    const result = setup.validateInput!({
+    const result = validateInput({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: { token: "abc123" },
@@ -50,7 +73,7 @@ describe("setup.validateInput", () => {
 
 describe("setup.resolveAccountId", () => {
   it("returns 'default' for undefined", () => {
-    const result = setup.resolveAccountId!({
+    const result = resolveAccountId({
       cfg: emptyCfg(),
       accountId: undefined,
     });
@@ -58,7 +81,7 @@ describe("setup.resolveAccountId", () => {
   });
 
   it("passes through explicit account id", () => {
-    const result = setup.resolveAccountId!({
+    const result = resolveAccountId({
       cfg: emptyCfg(),
       accountId: "work",
     });
@@ -68,7 +91,7 @@ describe("setup.resolveAccountId", () => {
 
 describe("setup.applyAccountName", () => {
   it("sets name on default account", () => {
-    const result = setup.applyAccountName!({
+    const result = applyAccountName({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       name: "My Bot",
@@ -78,7 +101,7 @@ describe("setup.applyAccountName", () => {
   });
 
   it("sets name on named account", () => {
-    const result = setup.applyAccountName!({
+    const result = applyAccountName({
       cfg: emptyCfg(),
       accountId: "work",
       name: "Work Bot",
@@ -90,7 +113,7 @@ describe("setup.applyAccountName", () => {
 
 describe("setup.resolveBindingAccountId", () => {
   it("returns explicit accountId when provided", () => {
-    const result = setup.resolveBindingAccountId!({
+    const result = resolveBindingAccountId({
       cfg: emptyCfg(),
       agentId: "work",
       accountId: "ops",
@@ -99,7 +122,7 @@ describe("setup.resolveBindingAccountId", () => {
   });
 
   it("returns default for single-account setup", () => {
-    const result = setup.resolveBindingAccountId!({
+    const result = resolveBindingAccountId({
       cfg: emptyCfg(),
       agentId: "work",
     });
@@ -114,7 +137,7 @@ describe("setup.resolveBindingAccountId", () => {
         personal: { botId: "bot-personal" },
       },
     });
-    const result = setup.resolveBindingAccountId!({
+    const result = resolveBindingAccountId({
       cfg,
       agentId: "work",
     });
@@ -128,7 +151,7 @@ describe("setup.resolveBindingAccountId", () => {
         personal: { botId: "bot-personal" },
       },
     });
-    const result = setup.resolveBindingAccountId!({
+    const result = resolveBindingAccountId({
       cfg,
       agentId: "work",
     });
@@ -158,24 +181,24 @@ describe("setup.applyAccountConfig", () => {
     expect(section.accessToken).toBe("tok456");
   });
 
-  it("sets callbackUrl from webhookUrl", () => {
+  it("sets webhookPath from webhookUrl", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
-      input: { token: "bot123", webhookUrl: "/gm/hook?k=secret" },
+      input: { token: "bot123", webhookUrl: "/gm/hook" },
     });
     const section = gmSection(result);
-    expect(section.callbackUrl).toBe("/gm/hook?k=secret");
+    expect(section.webhookPath).toBe("/gm/hook");
   });
 
-  it("sets callbackUrl from webhookPath fallback", () => {
+  it("sets webhookPath from webhookPath fallback", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
       input: { token: "bot123", webhookPath: "/gm/hook" },
     });
     const section = gmSection(result);
-    expect(section.callbackUrl).toBe("/gm/hook");
+    expect(section.webhookPath).toBe("/gm/hook");
   });
 
   it("preserves existing config fields", () => {
@@ -200,7 +223,8 @@ describe("setup.applyAccountConfig", () => {
     const section = gmSection(result);
     expect(section.botId).toBe("bot123");
     expect("accessToken" in section).toBe(false);
-    expect("callbackUrl" in section).toBe(false);
+    expect("webhookPath" in section).toBe(false);
+    expect("callbackToken" in section).toBe(false);
   });
 
   it("creates accounts[id] entry for named account", () => {
@@ -212,9 +236,9 @@ describe("setup.applyAccountConfig", () => {
     const section = gmSection(result);
     const account = section.accounts?.work;
     expect(account).toBeDefined();
-    expect(account!.botId).toBe("bot-work");
-    expect(account!.accessToken).toBe("tok-work");
-    expect(account!.enabled).toBe(true);
+    expect(account?.botId).toBe("bot-work");
+    expect(account?.accessToken).toBe("tok-work");
+    expect(account?.enabled).toBe(true);
   });
 
   it("sets top-level enabled for named account", () => {

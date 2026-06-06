@@ -1,10 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import type {
-  CoreConfig,
-  GroupMeCallbackData,
-  ResolvedGroupMeAccount,
-} from "../src/types.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -20,14 +16,10 @@ const core = vi.hoisted(() => {
     resolveEnvelopeFormatOptions: vi.fn(() => ({})),
     resolveStorePath: vi.fn(() => "/tmp/groupme-session"),
     readSessionUpdatedAt: vi.fn(() => undefined),
-    formatAgentEnvelope: vi.fn(
-      (params: { body: string }) => `ENV:${params.body}`,
-    ),
+    formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
     finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
     recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(
-      async (_params: unknown) => undefined,
-    ),
+    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async (_params: unknown) => undefined),
     chunkMarkdownText: vi.fn((text: string) => [text]),
   };
 
@@ -47,8 +39,7 @@ const core = vi.hoisted(() => {
           resolveEnvelopeFormatOptions: fns.resolveEnvelopeFormatOptions,
           formatAgentEnvelope: fns.formatAgentEnvelope,
           finalizeInboundContext: fns.finalizeInboundContext,
-          dispatchReplyWithBufferedBlockDispatcher:
-            fns.dispatchReplyWithBufferedBlockDispatcher,
+          dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
         },
         session: {
           resolveStorePath: fns.resolveStorePath,
@@ -76,9 +67,7 @@ function buildRuntimeEnv(): RuntimeEnv {
   };
 }
 
-function buildAccount(
-  overrides?: Partial<ResolvedGroupMeAccount>,
-): ResolvedGroupMeAccount {
+function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
   return {
     accountId: "default",
     enabled: true,
@@ -93,9 +82,7 @@ function buildAccount(
   };
 }
 
-function buildMessage(
-  overrides?: Partial<GroupMeCallbackData>,
-): GroupMeCallbackData {
+function buildMessage(overrides?: Partial<GroupMeCallbackData>): GroupMeCallbackData {
   return {
     id: "msg-1",
     text: "hello everyone",
@@ -115,7 +102,9 @@ function buildMessage(
 
 describe("handleGroupMeInbound history buffer", () => {
   beforeEach(() => {
-    Object.values(core.fns).forEach((fn) => fn.mockClear());
+    for (const fn of Object.values(core.fns)) {
+      fn.mockClear();
+    }
   });
 
   it("buffers non-mentioned messages when requireMention is true", async () => {
@@ -131,9 +120,7 @@ describe("handleGroupMeInbound history buffer", () => {
       historyLimit: 2,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(core.fns.recordInboundSession).not.toHaveBeenCalled();
     expect(groupHistories.get("group-1")).toEqual([
       {
@@ -158,9 +145,7 @@ describe("handleGroupMeInbound history buffer", () => {
       historyLimit: 0,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(groupHistories.get("group-1")).toBeUndefined();
   });
 
@@ -189,19 +174,12 @@ describe("handleGroupMeInbound history buffer", () => {
       historyLimit: 3,
     });
 
-    expect(
-      core.fns.dispatchReplyWithBufferedBlockDispatcher,
-    ).toHaveBeenCalledTimes(1);
-    const dispatched = core.fns.dispatchReplyWithBufferedBlockDispatcher.mock
-      .calls[0]?.[0] as
+    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalledTimes(1);
+    const dispatched = core.fns.dispatchReplyWithBufferedBlockDispatcher.mock.calls[0]?.[0] as
       | { ctx?: { Body?: string; InboundHistory?: unknown[] } }
       | undefined;
-    expect(dispatched?.ctx?.Body).toContain(
-      "[Chat messages since your last reply - for context]",
-    );
-    expect(dispatched?.ctx?.Body).toContain(
-      "[Current message - respond to this]",
-    );
+    expect(dispatched?.ctx?.Body).toContain("[Chat messages since your last reply - for context]");
+    expect(dispatched?.ctx?.Body).toContain("[Current message - respond to this]");
     expect(dispatched?.ctx?.Body).toContain("Bob: pizza tonight?");
     expect(dispatched?.ctx?.InboundHistory).toEqual([
       {
@@ -229,18 +207,16 @@ describe("handleGroupMeInbound history buffer", () => {
     ]);
     const runtime = buildRuntimeEnv();
 
-    core.fns.dispatchReplyWithBufferedBlockDispatcher.mockImplementationOnce(
-      async () => {
-        groupHistories.set("group-1", [
-          {
-            sender: "Eve",
-            body: "newly buffered while reply is running",
-            timestamp: 1_700_000_000_200,
-            messageId: "m1",
-          },
-        ]);
-      },
-    );
+    core.fns.dispatchReplyWithBufferedBlockDispatcher.mockImplementationOnce(async () => {
+      groupHistories.set("group-1", [
+        {
+          sender: "Eve",
+          body: "newly buffered while reply is running",
+          timestamp: 1_700_000_000_200,
+          messageId: "m1",
+        },
+      ]);
+    });
 
     await handleGroupMeInbound({
       message: buildMessage({ text: "@oddclaw please answer" }),
