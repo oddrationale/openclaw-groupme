@@ -12,8 +12,11 @@ npm run build
 
 [setup.win32]
 script = '''
-Set-Location $env:CODEX_WORKTREE_PATH
+$ErrorActionPreference = 'Stop'
+if (-not $env:CODEX_WORKTREE_PATH) { throw 'CODEX_WORKTREE_PATH not set' }
+Set-Location -LiteralPath $env:CODEX_WORKTREE_PATH
 fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 fnm install --lts --use
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm ci
