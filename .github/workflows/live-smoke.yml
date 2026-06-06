@@ -1,4 +1,4 @@
-name: Live Smoke
+name: GroupMe Live API and Plugin Smoke
 
 on:
   workflow_dispatch:
