@@ -29,8 +29,15 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run live smoke tests
-        run: npm run test:live
+      - name: Run GroupMe API live smoke
+        run: npm run test:live:api
+        env:
+          GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
+          GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
+          GROUPME_LIVE_GROUP_ID: ${{ secrets.GROUPME_LIVE_GROUP_ID }}
+
+      - name: Run plugin outbound live smoke
+        run: npm run test:live:plugin-outbound
         env:
           GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
           GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}

@@ -18,7 +18,7 @@ async function readError(response: Response): Promise<string> {
   return `${response.status} ${response.statusText}${text ? `: ${text}` : ""}`;
 }
 
-describeLive("GroupMe live smoke", () => {
+describeLive("GroupMe API live smoke", () => {
   it("can read the configured group and post through the configured bot", async () => {
     const accessToken = readSecret("GROUPME_LIVE_ACCESS_TOKEN");
     const botId = readSecret("GROUPME_LIVE_BOT_ID");
@@ -42,7 +42,7 @@ describeLive("GroupMe live smoke", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         bot_id: botId,
-        text: `openclaw-groupme live smoke ${runId}`,
+        text: `openclaw-groupme api live smoke ${runId}`,
       }),
     });
 
