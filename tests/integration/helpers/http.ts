@@ -53,9 +53,9 @@ export async function startTestHttpServer(
 
     try {
       await handler(request, response);
-    } catch (error) {
+    } catch {
       response.statusCode = 500;
-      response.end(error instanceof Error ? error.message : String(error));
+      response.end("Internal Server Error");
     }
   });
 
@@ -84,9 +84,9 @@ export async function startNodeHandlerServer(
   handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>,
 ): Promise<NodeHandlerServer> {
   const server = createServer((request, response) => {
-    void Promise.resolve(handler(request, response)).catch((error) => {
+    void Promise.resolve(handler(request, response)).catch(() => {
       response.statusCode = 500;
-      response.end(error instanceof Error ? error.message : String(error));
+      response.end("Internal Server Error");
     });
   });
 
