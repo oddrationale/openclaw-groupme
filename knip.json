@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "index.ts",
+    "channel-plugin-api.ts",
+    "runtime-setter-api.ts",
+    "secret-contract-api.ts",
+    "setup-entry.ts",
+    "setup-plugin-api.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ],
+  "project": ["**/*.ts"]
+}
