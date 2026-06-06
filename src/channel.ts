@@ -48,6 +48,24 @@ function normalizeWebhookPath(raw: string | undefined): string {
   }
 }
 
+function parseWebhookSetupInput(raw: string): {
+  webhookPath: string;
+  callbackToken?: string;
+} {
+  try {
+    const parsed = new URL(raw.trim(), "http://localhost");
+    const callbackToken = parsed.searchParams.get("k")?.trim() || undefined;
+    return {
+      webhookPath: parsed.pathname || "/groupme",
+      callbackToken,
+    };
+  } catch {
+    return {
+      webhookPath: normalizeWebhookPath(raw),
+    };
+  }
+}
+
 const meta = {
   id: CHANNEL_ID,
   label: "GroupMe",
@@ -101,9 +119,13 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       if (input.token?.trim()) updates.botId = input.token.trim();
       if (input.accessToken?.trim()) updates.accessToken = input.accessToken.trim();
       if (input.webhookUrl?.trim()) {
-        updates.webhookPath = normalizeWebhookPath(input.webhookUrl);
+        const parsed = parseWebhookSetupInput(input.webhookUrl);
+        updates.webhookPath = parsed.webhookPath;
+        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
       } else if (input.webhookPath?.trim()) {
-        updates.webhookPath = normalizeWebhookPath(input.webhookPath);
+        const parsed = parseWebhookSetupInput(input.webhookPath);
+        updates.webhookPath = parsed.webhookPath;
+        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
       }
 
       const section = (next.channels?.groupme ?? {}) as GroupMeConfig;

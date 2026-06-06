@@ -191,7 +191,7 @@ describe("setup.applyAccountConfig", () => {
     expect(section.webhookPath).toBe("/gm/hook");
   });
 
-  it("strips query tokens from webhookUrl before saving webhookPath", () => {
+  it("migrates callback token from webhookUrl query while saving only webhookPath", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
@@ -199,6 +199,7 @@ describe("setup.applyAccountConfig", () => {
     });
     const section = gmSection(result);
     expect(section.webhookPath).toBe("/gm/hook");
+    expect(section.callbackToken).toBe("secret");
   });
 
   it("sets webhookPath from webhookPath fallback", () => {
@@ -211,7 +212,7 @@ describe("setup.applyAccountConfig", () => {
     expect(section.webhookPath).toBe("/gm/hook");
   });
 
-  it("strips query tokens from webhookPath fallback before saving", () => {
+  it("migrates callback token from webhookPath fallback while saving only webhookPath", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),
       accountId: DEFAULT_ACCOUNT_ID,
@@ -219,6 +220,7 @@ describe("setup.applyAccountConfig", () => {
     });
     const section = gmSection(result);
     expect(section.webhookPath).toBe("/gm/hook");
+    expect(section.callbackToken).toBe("secret");
   });
 
   it("preserves existing config fields", () => {

@@ -778,6 +778,47 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     );
   });
 
+  it("does not overwrite secret-backed callback tokens during change_group bot registration", async () => {
+    const secretCallbackCfg = {
+      channels: {
+        groupme: {
+          enabled: true,
+          botId: "bot-existing",
+          accessToken: "token-existing",
+          botName: "oddclaw",
+          groupId: "g1",
+          publicDomain: "bot.example.com",
+          webhookPath: "/groupme/abc123",
+          callbackToken: {
+            source: "env",
+            provider: "default",
+            id: "GROUPME_CALLBACK_TOKEN",
+          },
+          requireMention: true,
+        },
+      },
+    } as OpenClawConfig;
+
+    fetchGroupsMock.mockResolvedValueOnce([group("g1", "Family"), group("g2", "Work")]);
+
+    const { prompter } = makePrompter();
+    (prompter.select as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce("change_group")
+      .mockResolvedValueOnce("g2");
+    (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    const result = await configureWhenConfigured(
+      configureWhenConfiguredCtx(prompter, secretCallbackCfg),
+    );
+
+    expect(result).toBe("skip");
+    expect(createBotMock).not.toHaveBeenCalled();
+    expect(prompter.note).toHaveBeenCalledWith(
+      expect.stringContaining("Callback token is configured as a secret reference."),
+      "Secret callback token",
+    );
+  });
+
   it("regenerates webhook settings", async () => {
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("regen_callback");

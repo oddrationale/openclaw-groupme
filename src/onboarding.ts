@@ -432,6 +432,19 @@ export const groupmeOnboardingAdapter: ChannelSetupWizardAdapter = {
         }
         let webhookPath = account.config.webhookPath?.trim();
         let callbackToken = readSecretInputString(account.config.callbackToken);
+        const hasSecretBackedCallbackToken =
+          !callbackToken && hasSecretInput(account.config.callbackToken);
+        if (hasSecretBackedCallbackToken) {
+          await prompter.note(
+            [
+              "Callback token is configured as a secret reference.",
+              "Re-registering a GroupMe bot requires the literal callback token to build the callback URL.",
+              "Regenerate webhook settings or update the bot outside this setup flow.",
+            ].join("\n"),
+            "Secret callback token",
+          );
+          return "skip";
+        }
         if (!webhookPath || !callbackToken) {
           const generated = generateCallbackSettings();
           webhookPath = webhookPath || generated.webhookPath;
