@@ -18,6 +18,18 @@ async function readError(response: Response): Promise<string> {
   return `${response.status} ${response.statusText}${text ? `: ${text}` : ""}`;
 }
 
+async function expectOk(response: Response): Promise<void> {
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+}
+
+async function expectStatus(response: Response, status: number): Promise<void> {
+  if (response.status !== status) {
+    throw new Error(await readError(response));
+  }
+}
+
 describeLive("GroupMe API live smoke", () => {
   it("can read the configured group and post through the configured bot", async () => {
     const accessToken = readSecret("GROUPME_LIVE_ACCESS_TOKEN");
@@ -28,7 +40,7 @@ describeLive("GroupMe API live smoke", () => {
     groupUrl.searchParams.set("token", accessToken);
 
     const groupResponse = await fetch(groupUrl);
-    expect(groupResponse.ok, await readError(groupResponse)).toBe(true);
+    await expectOk(groupResponse);
 
     const groupPayload = (await groupResponse.json()) as { response?: { id?: unknown } };
     expect(String(groupPayload.response?.id ?? "")).toBe(groupId);
@@ -46,6 +58,6 @@ describeLive("GroupMe API live smoke", () => {
       }),
     });
 
-    expect(postResponse.status, await readError(postResponse)).toBe(202);
+    await expectStatus(postResponse, 202);
   }, 30_000);
 });
