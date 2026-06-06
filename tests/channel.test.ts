@@ -96,6 +96,27 @@ describe("groupmePlugin.config", () => {
     });
   });
 
+  it("describes secret input objects as configured without leaking them", () => {
+    const described = groupmePlugin.config.describeAccount(
+      account({
+        botId: "",
+        accessToken: "",
+        config: {
+          botId: { source: "env", provider: "default", id: "GROUPME_BOT_ID" },
+          accessToken: { source: "env", provider: "default", id: "GROUPME_ACCESS_TOKEN" },
+          callbackToken: {
+            source: "env",
+            provider: "default",
+            id: "GROUPME_CALLBACK_TOKEN",
+          },
+        },
+      }),
+    );
+
+    expect(described.botId).toBe("***");
+    expect(described.callbackToken).toBe("***");
+  });
+
   it("uses safe defaults when optional account fields are missing", () => {
     const described = groupmePlugin.config.describeAccount(
       account({
@@ -319,6 +340,27 @@ describe("groupmePlugin status and gateway", () => {
         webhookPath: "/groupme/custom",
         running: true,
         mode: "webhook",
+      }),
+    );
+  });
+
+  it("marks secret input objects as configured in account snapshots", () => {
+    const snapshot = groupmePlugin.status.buildAccountSnapshot({
+      account: account({
+        botId: "",
+        accessToken: "",
+        config: {
+          botId: { source: "env", provider: "default", id: "GROUPME_BOT_ID" },
+          accessToken: { source: "env", provider: "default", id: "GROUPME_ACCESS_TOKEN" },
+        },
+      }),
+      runtime: undefined,
+    });
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        botId: "***",
+        tokenSource: "configured",
       }),
     );
   });

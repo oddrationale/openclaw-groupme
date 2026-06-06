@@ -1,6 +1,7 @@
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  hasSecretInput,
   listGroupMeAccountIds,
   readTrimmed,
   resolveDefaultGroupMeAccountId,
@@ -27,6 +28,10 @@ describe("resolveGroupMeAccount", () => {
     expect(readTrimmed(" token ")).toBe("token");
     expect(readTrimmed("   ")).toBeUndefined();
     expect(readTrimmed(123)).toBeUndefined();
+    expect(hasSecretInput(" token ")).toBe(true);
+    expect(hasSecretInput("   ")).toBe(false);
+    expect(hasSecretInput({ source: "env", provider: "default", id: "GROUPME_BOT_ID" })).toBe(true);
+    expect(hasSecretInput([])).toBe(false);
   });
 
   it("lists normalized account ids with default first", () => {
@@ -65,6 +70,36 @@ describe("resolveGroupMeAccount", () => {
     expect(account.config.callbackToken).toBe("callback-secret");
     expect(account.config.groupId).toBe("group-1");
     expect(account.config.webhookPath).toBe("/groupme/hook");
+  });
+
+  it("preserves secret input objects in account config", () => {
+    const botIdRef = { source: "env", provider: "default", id: "GROUPME_BOT_ID" } as const;
+    const accessTokenRef = {
+      source: "env",
+      provider: "default",
+      id: "GROUPME_ACCESS_TOKEN",
+    } as const;
+    const callbackTokenRef = {
+      source: "env",
+      provider: "default",
+      id: "GROUPME_CALLBACK_TOKEN",
+    } as const;
+
+    const account = resolveGroupMeAccount({
+      cfg: cfg({
+        botId: botIdRef,
+        accessToken: accessTokenRef,
+        callbackToken: callbackTokenRef,
+      }),
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+
+    expect(account.configured).toBe(true);
+    expect(account.botId).toBe("");
+    expect(account.accessToken).toBe("");
+    expect(account.config.botId).toBe(botIdRef);
+    expect(account.config.accessToken).toBe(accessTokenRef);
+    expect(account.config.callbackToken).toBe(callbackTokenRef);
   });
 
   it("merges named accounts over top-level defaults", () => {

@@ -14,6 +14,17 @@ export function readTrimmed(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+export function hasSecretInput(value: unknown): boolean {
+  if (typeof value === "string") {
+    return Boolean(value.trim());
+  }
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function trimSecretInput(value: GroupMeAccountConfig["botId"]): GroupMeAccountConfig["botId"] {
+  return typeof value === "string" ? readTrimmed(value) : value;
+}
+
 function listConfiguredAccountIds(cfg: CoreConfig): string[] {
   const accounts = cfg.channels?.groupme?.accounts;
   if (!accounts || typeof accounts !== "object") {
@@ -89,7 +100,6 @@ export function resolveGroupMeAccount(params: {
 
   const botId = readTrimmed(merged.botId) ?? "";
   const accessToken = readTrimmed(merged.accessToken) ?? "";
-  const callbackToken = readTrimmed(merged.callbackToken);
   const botName = readTrimmed(merged.botName);
   const groupId = readTrimmed(merged.groupId);
   const webhookPath = readTrimmed(merged.webhookPath);
@@ -97,9 +107,9 @@ export function resolveGroupMeAccount(params: {
 
   const config: GroupMeAccountConfig = {
     ...merged,
-    botId,
-    accessToken,
-    callbackToken,
+    botId: trimSecretInput(merged.botId),
+    accessToken: trimSecretInput(merged.accessToken),
+    callbackToken: trimSecretInput(merged.callbackToken),
     botName,
     groupId,
     publicDomain,
@@ -110,7 +120,7 @@ export function resolveGroupMeAccount(params: {
     accountId,
     name: readTrimmed(merged.name),
     enabled,
-    configured: Boolean(botId),
+    configured: hasSecretInput(merged.botId),
     botId,
     accessToken,
     config,

@@ -106,7 +106,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
       }),
     );
     expect(status.statusLines).toContain("Access token missing");
-    expect(status.statusLines).toContain("Callback token missing");
+    expect(status.statusLines).toContain("Callback token configured");
   });
 
   it("reports configured status for the default account", async () => {

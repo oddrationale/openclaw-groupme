@@ -2,16 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
 import type { ChannelSetupWizardAdapter } from "openclaw/plugin-sdk/setup";
-import { resolveGroupMeAccount } from "./accounts.js";
+import { hasSecretInput, resolveGroupMeAccount } from "./accounts.js";
 import { createBot, fetchGroups } from "./groupme-api.js";
 import type { CoreConfig, GroupMeConfig } from "./types.js";
-
-function hasSecretInput(value: unknown): boolean {
-  if (typeof value === "string") {
-    return Boolean(value.trim());
-  }
-  return Boolean(value && typeof value === "object");
-}
 
 function readSecretInputString(value: unknown): string | undefined {
   if (typeof value !== "string") {

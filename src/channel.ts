@@ -12,8 +12,8 @@ import {
 import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
 import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
 import {
+  hasSecretInput,
   listGroupMeAccountIds,
-  readTrimmed,
   resolveDefaultGroupMeAccountId,
   resolveGroupMeAccount,
 } from "./accounts.js";
@@ -46,10 +46,6 @@ function normalizeWebhookPath(raw: string | undefined): string {
     }
     return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
   }
-}
-
-function readSecretInputString(value: unknown): string | undefined {
-  return typeof value === "string" ? readTrimmed(value) : undefined;
 }
 
 const meta = {
@@ -202,10 +198,10 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       name: account.name,
       enabled: account.enabled,
       configured: account.configured,
-      botId: account.botId ? "***" : "",
+      botId: hasSecretInput(account.config.botId) ? "***" : "",
       publicDomain: account.config.publicDomain ?? "",
       webhookPath: normalizeWebhookPath(account.config.webhookPath),
-      callbackToken: readSecretInputString(account.config.callbackToken) ? "***" : "",
+      callbackToken: hasSecretInput(account.config.callbackToken) ? "***" : "",
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
       (resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config.allowFrom ?? []).map(
@@ -345,8 +341,8 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       name: account.name,
       enabled: account.enabled,
       configured: account.configured,
-      botId: account.botId ? "***" : "",
-      tokenSource: account.accessToken ? "configured" : "none",
+      botId: hasSecretInput(account.config.botId) ? "***" : "",
+      tokenSource: hasSecretInput(account.config.accessToken) ? "configured" : "none",
       webhookPath: normalizeWebhookPath(account.config.webhookPath),
       running: runtime?.running ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,
