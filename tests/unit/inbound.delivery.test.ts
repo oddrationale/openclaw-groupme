@@ -1,7 +1,7 @@
 import type { ReplyPayload } from "openclaw/plugin-sdk/core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../src/types.js";
+import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../../src/types.js";
 
 const core = vi.hoisted(() => {
   const fns = {
@@ -60,12 +60,12 @@ const core = vi.hoisted(() => {
 const sendGroupMeTextMock = vi.hoisted(() => vi.fn());
 const sendGroupMeMediaMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../src/runtime.js", () => ({
+vi.mock("../../src/runtime.js", () => ({
   getGroupMeRuntime: () => core.runtime,
 }));
 
-vi.mock("../src/send.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/send.js")>();
+vi.mock("../../src/send.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/send.js")>();
   return {
     ...actual,
     sendGroupMeText: sendGroupMeTextMock,
@@ -79,7 +79,7 @@ type DispatcherParams = {
   };
 };
 
-import { handleGroupMeInbound } from "../src/inbound.js";
+import { handleGroupMeInbound } from "../../src/inbound.js";
 
 function buildRuntimeEnv(): RuntimeEnv {
   return {

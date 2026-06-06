@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import plugin from "../index.js";
+import plugin from "../../index.js";
 
 describe("GroupMe bundled channel entry", () => {
   it("defines the bundled channel entry", () => {

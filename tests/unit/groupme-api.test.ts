@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createBot, fetchGroups } from "../src/groupme-api.js";
+import { createBot, fetchGroups } from "../../src/groupme-api.js";
 
 function makeGroup(id: string, name: string) {
   return {

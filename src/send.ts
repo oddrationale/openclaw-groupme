@@ -33,8 +33,10 @@ export async function sendGroupMeMessage(params: {
   text: string;
   pictureUrl?: string;
   fetchFn?: FetchLike;
+  apiBaseUrl?: string;
 }): Promise<SendGroupMeResult> {
   const fetchFn = params.fetchFn ?? fetch;
+  const apiBaseUrl = params.apiBaseUrl ?? GROUPME_API_BASE;
   const payload: { bot_id: string; text: string; picture_url?: string } = {
     bot_id: params.botId,
     text: params.text,
@@ -42,7 +44,7 @@ export async function sendGroupMeMessage(params: {
   if (params.pictureUrl) {
     payload.picture_url = params.pictureUrl;
   }
-  const response = await fetchFn(`${GROUPME_API_BASE}/bots/post`, {
+  const response = await fetchFn(`${apiBaseUrl}/bots/post`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -71,9 +73,11 @@ export async function uploadGroupMeImage(params: {
   imageData: Buffer;
   contentType?: string;
   fetchFn?: FetchLike;
+  imageBaseUrl?: string;
 }): Promise<string> {
   const fetchFn = params.fetchFn ?? fetch;
-  const response = await fetchFn(`${GROUPME_IMAGE_SERVICE}/pictures`, {
+  const imageBaseUrl = params.imageBaseUrl ?? GROUPME_IMAGE_SERVICE;
+  const response = await fetchFn(`${imageBaseUrl}/pictures`, {
     method: "POST",
     headers: {
       "X-Access-Token": params.accessToken,
@@ -294,6 +298,7 @@ export async function sendGroupMeText(params: {
   text: string;
   accountId?: string | null;
   fetchFn?: FetchLike;
+  apiBaseUrl?: string;
 }): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
     cfg: params.cfg,
@@ -307,6 +312,7 @@ export async function sendGroupMeText(params: {
     botId: account.botId,
     text: params.text,
     fetchFn: params.fetchFn,
+    apiBaseUrl: params.apiBaseUrl,
   });
 }
 
@@ -317,6 +323,8 @@ export async function sendGroupMeMedia(params: {
   mediaUrl: string;
   accountId?: string | null;
   fetchFn?: FetchLike;
+  apiBaseUrl?: string;
+  imageBaseUrl?: string;
 }): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
     cfg: params.cfg,
@@ -347,6 +355,7 @@ export async function sendGroupMeMedia(params: {
     imageData: data,
     contentType,
     fetchFn: params.fetchFn,
+    imageBaseUrl: params.imageBaseUrl,
   });
 
   return sendGroupMeMessage({
@@ -354,5 +363,6 @@ export async function sendGroupMeMedia(params: {
     text: params.text,
     pictureUrl,
     fetchFn: params.fetchFn,
+    apiBaseUrl: params.apiBaseUrl,
   });
 }

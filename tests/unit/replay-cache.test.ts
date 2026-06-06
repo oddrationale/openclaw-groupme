@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildReplayKey, GroupMeReplayCache } from "../src/replay-cache.js";
-import type { GroupMeCallbackData } from "../src/types.js";
+import { buildReplayKey, GroupMeReplayCache } from "../../src/replay-cache.js";
+import type { GroupMeCallbackData } from "../../src/types.js";
 
 describe("GroupMeReplayCache", () => {
   it("accepts first key and rejects duplicate within ttl", () => {

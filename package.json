@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run knip",
+    "check": "npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run build && npm run knip",
     "commitlint": "commitlint --edit",
     "format": "biome format --write .",
     "format:check": "biome format .",
@@ -46,9 +46,14 @@
     "lint:fix": "biome check --write .",
     "prepack": "npm run build",
     "prepare": "lefthook install",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
+    "test": "npm run test:unit",
+    "test:coverage": "vitest run tests/unit tests/integration --coverage --no-file-parallelism",
+    "test:integration": "vitest run tests/integration --no-file-parallelism",
+    "test:live": "vitest run tests/live",
+    "test:live:api": "vitest run tests/live/groupme-api-live.test.ts",
+    "test:live:plugin-outbound": "vitest run tests/live/groupme-plugin-outbound-live.test.ts",
+    "test:unit": "vitest run tests/unit",
+    "test:watch": "vitest tests/unit tests/integration",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { setGroupMeRuntime } from "../src/runtime.js";
+import { setGroupMeRuntime } from "../../src/runtime.js";
 import {
   sendGroupMeMedia,
   sendGroupMeMessage,
   sendGroupMeText,
   uploadGroupMeImage,
-} from "../src/send.js";
-import type { CoreConfig } from "../src/types.js";
+} from "../../src/send.js";
+import type { CoreConfig } from "../../src/types.js";
 
 describe("sendGroupMeMessage", () => {
   it("sends text message", async () => {

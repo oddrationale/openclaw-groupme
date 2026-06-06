@@ -4,7 +4,7 @@ import {
   channelSecrets,
   collectRuntimeConfigAssignments,
   secretTargetRegistryEntries,
-} from "../src/secret-contract.js";
+} from "../../src/secret-contract.js";
 
 function envRef(name: string) {
   return { source: "env", provider: "default", id: name };

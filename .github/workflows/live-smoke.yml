@@ -1,0 +1,44 @@
+name: Live Smoke
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: groupme-live-smoke
+  cancel-in-progress: false
+
+jobs:
+  groupme-live:
+    runs-on: ubuntu-latest
+    if: github.repository == 'oddrationale/openclaw-groupme'
+    environment: groupme-live-smoke
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run GroupMe API live smoke
+        run: npm run test:live:api
+        env:
+          GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
+          GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
+          GROUPME_LIVE_GROUP_ID: ${{ secrets.GROUPME_LIVE_GROUP_ID }}
+
+      - name: Run plugin outbound live smoke
+        run: npm run test:live:plugin-outbound
+        env:
+          GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
+          GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
+          GROUPME_LIVE_GROUP_ID: ${{ secrets.GROUPME_LIVE_GROUP_ID }}

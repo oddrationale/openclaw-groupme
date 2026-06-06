@@ -6,8 +6,8 @@ import {
   readTrimmed,
   resolveDefaultGroupMeAccountId,
   resolveGroupMeAccount,
-} from "../src/accounts.js";
-import type { CoreConfig, GroupMeConfig } from "../src/types.js";
+} from "../../src/accounts.js";
+import type { CoreConfig, GroupMeConfig } from "../../src/types.js";
 
 function cfg(groupme: GroupMeConfig): CoreConfig {
   return { channels: { groupme } } as CoreConfig;
