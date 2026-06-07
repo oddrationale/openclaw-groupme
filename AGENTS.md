@@ -100,6 +100,24 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 
 Only `feat:`, `fix:`, and breaking changes trigger a release. Use the appropriate type so the changelog and version bump are correct.
 
+### Release Please and Squash Merges
+
+Release Please reads the commits that land on `main`. When GitHub squash-merges a pull request, the PR title usually becomes the final commit subject. If a PR contains release-triggering work, the PR title used for squash merge must also be a Conventional Commit.
+
+Before merging a PR that should trigger a release, make sure the squash commit title starts with one of:
+
+- `feat:` for new features
+- `fix:` for bug fixes
+- `feat!:` or another Conventional Commit with `!` for breaking changes
+
+For example, a breaking modernization PR should be squash-merged with a title like:
+
+```text
+feat!: modernize GroupMe channel for OpenClaw 2026.6.1
+```
+
+Do not squash-merge a releasable PR with a descriptive but non-conventional title such as `Modernize GroupMe for OpenClaw 2026.6.1 and add repo tooling`, because Release Please will not recognize it as a release-triggering Conventional Commit and will skip the release.
+
 ## ClawHub Publishing
 
 This is a ClawHub **code plugin**, not a skills plugin. Publish the same npm package artifact to ClawHub with `clawhub package publish --family code-plugin`.
