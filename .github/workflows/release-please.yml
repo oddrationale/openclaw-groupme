@@ -44,9 +44,11 @@ jobs:
       - name: Show package version
         run: npm pkg get name version
 
-      - name: Publish package
-        run: npm publish --provenance --access public
-
+      # Pack and validate the ClawHub publish (the weakest link) BEFORE the
+      # irreversible npm publish. npm rejects re-publishing an existing version,
+      # so if ClawHub fails after npm succeeds the release is stuck. By packing
+      # and dry-running ClawHub first, a ClawHub-side problem fails the job
+      # before anything is published, leaving the release safe to re-run.
       - name: Pack package for ClawHub
         id: pack
         run: |
@@ -64,7 +66,7 @@ jobs:
           fi
           echo "tarball=${TARBALL}" >> "${GITHUB_OUTPUT}"
 
-      - name: Publish package to ClawHub
+      - name: Validate ClawHub publish (dry run)
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
         run: |
@@ -72,6 +74,22 @@ jobs:
             echo "::error::CLAWHUB_TOKEN secret is required to publish to ClawHub."
             exit 1
           fi
+          npx --yes clawhub@0.19.1 login --token "${CLAWHUB_TOKEN}"
+          npx --yes clawhub@0.19.1 package publish "${{ steps.pack.outputs.tarball }}" \
+            --family code-plugin \
+            --source-repo "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --source-ref "${GITHUB_REF}" \
+            --manual-override-reason "GitHub Actions release publish via CLAWHUB_TOKEN" \
+            --dry-run
+
+      - name: Publish package to npm
+        run: npm publish --provenance --access public
+
+      - name: Publish package to ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
           npx --yes clawhub@0.19.1 login --token "${CLAWHUB_TOKEN}"
           npx --yes clawhub@0.19.1 package publish "${{ steps.pack.outputs.tarball }}" \
             --family code-plugin \
