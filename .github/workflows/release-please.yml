@@ -50,7 +50,11 @@ jobs:
       - name: Pack package for ClawHub
         id: pack
         run: |
-          npm pack --json > pack-result.json
+          # Build explicitly, then pack with --ignore-scripts so lifecycle
+          # output (e.g. `prepare`/lefthook writing to stdout) cannot pollute
+          # the JSON we parse for the tarball filename.
+          npm run build
+          npm pack --json --ignore-scripts > pack-result.json
           TARBALL="$(
             node -e "const fs = require('node:fs'); const packed = JSON.parse(fs.readFileSync('pack-result.json', 'utf8')); const filename = packed[0]?.filename; if (!filename) { console.error('npm pack did not report a tarball filename.'); process.exit(1); } process.stdout.write(filename);"
           )"
