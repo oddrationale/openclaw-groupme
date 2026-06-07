@@ -108,6 +108,8 @@ openclaw gateway restart
 
 **10.** Send a test message in the GroupMe group. If everything is wired up correctly, your bot should respond. Make sure your reverse proxy or port forwarding is configured to route the callback URL to your gateway.
 
+> **After the wizard — hardening secrets (recommended for production):** the wizard writes your `accessToken`, `botId`, and `callbackToken` as plaintext literals in `openclaw.json`. That's fine for local testing, but for production you should migrate them to [SecretRefs](#secrets) so no plaintext credentials live in your config. See [Secrets](#secrets) below.
+
 ## Setup: Non-Interactive CLI
 
 If you already have a GroupMe bot created (maybe from the [Bots page](https://dev.groupme.com/bots) on the developer portal) and want a scriptable setup, use the CLI flags directly:
@@ -386,7 +388,7 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 
 ## Secrets
 
-`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, or use SecretRefs for env/file/exec-backed secrets.
+`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, but **for production the recommended approach is SecretRefs** so no plaintext credentials live in your config — this matches OpenClaw's [secrets guidance](https://docs.openclaw.ai/gateway/secrets) and how official channels like Slack and Discord document setup. Plaintext is fully supported and fine for quick local testing.
 
 The plugin does **not** read environment variables on its own. The `GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, and `GROUPME_CALLBACK_TOKEN` names it declares (as `channelEnvVars`) are what OpenClaw surfaces as **env-backed SecretRefs** and for setup tooling — to actually use them, reference them from config with a SecretRef (shown below), or let the setup wizard write the config for you. Setting those env vars alone, without a SecretRef in config, is not enough to configure the channel.
 
@@ -402,6 +404,19 @@ The plugin does **not** read environment variables on its own. The `GROUPME_BOT_
     }
   }
 }
+```
+
+SecretRefs also support `file`- and `exec`-backed providers, and work per account (under `accounts.<id>`), not just the default account.
+
+### Migrating wizard-written plaintext to SecretRefs
+
+The setup wizard writes plaintext credentials. To convert them to SecretRefs (and scrub the plaintext residue), use OpenClaw's secrets workflow — GroupMe's `botId`, `accessToken`, and `callbackToken` are registered targets, so they show up in the planner automatically:
+
+```bash
+openclaw secrets configure          # plan the migration (interactive)
+openclaw secrets apply --from <plan> # write SecretRefs and scrub plaintext
+openclaw secrets audit --check       # verify no plaintext residue remains
+openclaw secrets reload              # re-resolve refs into the runtime snapshot
 ```
 
 ## Config Reference
