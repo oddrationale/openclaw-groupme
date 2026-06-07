@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.4...openclaw-groupme-v0.5.0) (2026-06-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Requires OpenClaw v2026.6.1 and uses the updated plugin
+
+### Features
+
+* modernize GroupMe channel for OpenClaw 2026.6.1 ([#60](https://github.com/oddrationale/openclaw-groupme/issues/60)) ([241bc6d](https://github.com/oddrationale/openclaw-groupme/commit/241bc6dbd552d920629081bf60ea4999092e27ad))
+
+
+### Bug Fixes
+
+* harden GroupMe webhook handling and reach full line/function coverage ([#63](https://github.com/oddrationale/openclaw-groupme/issues/63)) ([64f8d99](https://github.com/oddrationale/openclaw-groupme/commit/64f8d99902a0957aed06c523fc4ea66653771db1))
+
 ## [0.4.4](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.3...openclaw-groupme-v0.4.4) (2026-06-05)
 
 
