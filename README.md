@@ -438,7 +438,7 @@ openclaw secrets reload              # re-resolve refs into the runtime snapshot
 | `allowFrom` | array | — | Sender allowlist (`"*"` allows everyone) |
 | `textChunkLimit` | number | `1000` | Max characters per outbound text chunk (capped at GroupMe's 1000-char limit) |
 | `responsePrefix` | string | — | Text prepended to each outbound reply |
-| `blockStreaming` | boolean | `false` | Stream completed assistant blocks as separate messages instead of one final reply |
+| `blockStreaming` | boolean | unset (OpenClaw default) | Override block streaming for this channel. When unset, OpenClaw's dispatcher default applies; set `true` to stream completed assistant blocks as separate messages, or `false` to send a single final reply |
 | `blockStreamingCoalesce` | object | — | Fine-tunes how streamed blocks are coalesced (see OpenClaw docs) |
 | `markdown` | object | — | Markdown rendering overrides for outbound messages |
 | `mediaMaxMb` | number | — | Max size (MB) for **inbound** media the OpenClaw runtime fetches from GroupMe. Distinct from `security.media.maxDownloadBytes`, which caps **outbound** media the bot downloads before re-uploading. |
