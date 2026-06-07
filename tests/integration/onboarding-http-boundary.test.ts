@@ -1,63 +1,10 @@
-import type { OpenClawConfig, WizardPrompter } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, type vi } from "vitest";
 import { createBot, fetchGroups } from "../../src/groupme-api.js";
 import { createGroupMeOnboardingAdapter } from "../../src/onboarding.js";
+import { group, makePrompter, makeRuntime } from "../helpers/onboarding.js";
 import { startTestHttpServer, type TestHttpServer } from "./helpers/http.js";
-
-function makeRuntime(): RuntimeEnv {
-  return {
-    log: vi.fn(),
-    error: vi.fn(),
-    exit: ((code: number) => {
-      throw new Error(`exit(${code})`);
-    }) as RuntimeEnv["exit"],
-  };
-}
-
-function makePrompter() {
-  const progressSpins: Array<{ update: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }> =
-    [];
-  const progress = vi.fn((_label: string) => {
-    const spin = { update: vi.fn(), stop: vi.fn() };
-    progressSpins.push(spin);
-    return spin;
-  });
-
-  const prompter: WizardPrompter = {
-    intro: vi.fn(async () => undefined),
-    outro: vi.fn(async () => undefined),
-    note: vi.fn(async () => undefined),
-    select: vi.fn(async () => "") as WizardPrompter["select"],
-    multiselect: vi.fn(async () => []) as WizardPrompter["multiselect"],
-    text: vi.fn(async () => "") as WizardPrompter["text"],
-    confirm: vi.fn(async () => true),
-    progress,
-  };
-
-  return { prompter, progressSpins };
-}
-
-function group(id: string, name: string) {
-  return {
-    id,
-    name,
-    description: "",
-    image_url: null,
-    creator_user_id: "user-1",
-    created_at: 1,
-    updated_at: 1,
-    messages: {
-      count: 0,
-      last_message_created_at: 0,
-      preview: {
-        nickname: "",
-        text: "",
-      },
-    },
-  };
-}
 
 describe("GroupMe onboarding HTTP boundary", () => {
   let api: TestHttpServer | null = null;

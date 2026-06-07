@@ -80,6 +80,15 @@ describe("fetchGroups", () => {
     );
   });
 
+  it("ignores non-string entries in meta.errors", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ meta: { errors: [123, "real error", null] } }, 400));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchGroups("token-1")).rejects.toThrow(/real error/);
+  });
+
   it("falls back to status text when an error payload is not JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(textResponse("not json", 500));
     vi.stubGlobal("fetch", fetchMock);

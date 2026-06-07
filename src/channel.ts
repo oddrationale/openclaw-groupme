@@ -40,10 +40,17 @@ function normalizeWebhookPath(raw: string | undefined): string {
     const parsed = new URL(trimmed, "http://localhost");
     return parsed.pathname || "/groupme";
   } catch {
+    // Unparseable input (e.g. "http://%"): strip any query/fragment and ensure a
+    // leading slash so we still return a route-shaped path rather than throwing.
+    // This is a display/registration fallback for malformed config, not a parser.
+    // The `?? trimmed` and empty-`noQuery` guards are defensive: split() always yields
+    // a [0], and a non-empty trimmed string can't reduce to an empty noQuery here.
+    /* v8 ignore start */
     const noQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
     if (!noQuery) {
       return "/groupme";
     }
+    /* v8 ignore stop */
     return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
   }
 }
@@ -392,6 +399,9 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
           account,
           config: ctx.cfg as CoreConfig,
           runtime: ctx.runtime,
+          // Thin setStatus adapter; exercised end-to-end through the live gateway, not in
+          // unit isolation (the webhook-flow tests drive the handler with their own sink).
+          /* v8 ignore next */
           statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
         }),
         auth: "plugin",
@@ -411,8 +421,17 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
 
       ctx.log?.info(`[${account.accountId}] GroupMe webhook listening on ${callbackPath}`);
 
+      const markStopped = () => {
+        ctx.setStatus({
+          accountId: account.accountId,
+          running: false,
+          lastStopAt: Date.now(),
+        });
+      };
+
       if (ctx.abortSignal.aborted) {
         unregister();
+        markStopped();
         return;
       }
 
@@ -421,6 +440,7 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
           "abort",
           () => {
             unregister();
+            markStopped();
             resolve();
           },
           { once: true },

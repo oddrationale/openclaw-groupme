@@ -297,6 +297,8 @@ You only need a `security` block if you want to override the defaults. Just incl
 | `security.media.requestTimeoutMs` | number | `10000` | Timeout for outbound media fetch requests (ms) |
 | `security.media.allowedMimePrefixes` | string[] | `["image/"]` | Allowed MIME type prefixes for outbound media |
 
+> **Inbound vs. outbound media limits:** the `security.media.*` settings above govern **outbound** media — images the bot downloads from a URL and re-uploads to GroupMe. The separate top-level `mediaMaxMb` field governs **inbound** media the OpenClaw runtime fetches from GroupMe callbacks. They are independent knobs.
+
 #### Logging
 
 | Field | Type | Default | Description |
@@ -356,6 +358,7 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 | `mentionPatterns` | string[] | — | Custom regex patterns for mention detection |
 | `allowFrom` | array | — | Sender allowlist (`"*"` allows everyone) |
 | `textChunkLimit` | number | `1000` | Max characters per outbound text chunk |
+| `mediaMaxMb` | number | — | Max size (MB) for **inbound** media the OpenClaw runtime fetches from GroupMe. Distinct from `security.media.maxDownloadBytes`, which caps **outbound** media the bot downloads before re-uploading. |
 | `security` | object | — | Security overrides (see [Security](#security) section above) |
 
 ## Webhook URL Format

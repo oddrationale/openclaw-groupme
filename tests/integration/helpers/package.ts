@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -32,7 +32,7 @@ export function run(
   });
 }
 
-export function buildPackage(): void {
+function buildPackage(): void {
   if (built) {
     return;
   }
@@ -40,13 +40,13 @@ export function buildPackage(): void {
   built = true;
 }
 
-export type PackedFile = {
+type PackedFile = {
   path: string;
   size: number;
   mode: number;
 };
 
-export type PackDryRun = {
+type PackDryRun = {
   filename: string;
   files: PackedFile[];
 };
@@ -109,12 +109,6 @@ export function readRootPackageJson(): {
   engines: Record<string, string>;
 } {
   return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
-}
-
-export function assertExistsInRepo(relativePath: string): void {
-  if (!existsSync(join(repoRoot, relativePath))) {
-    throw new Error(`Expected ${relativePath} to exist in the repository`);
-  }
 }
 
 export async function importBuilt<T>(relativePath: string): Promise<T> {

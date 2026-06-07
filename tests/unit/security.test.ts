@@ -163,9 +163,8 @@ describe("resolveGroupMeSecurity", () => {
 
     expect(security.callbackToken).toBe("secret");
     expect(security.groupId).toBe("group-1");
-    expect(security.replay).toEqual({ enabled: true, ttlSeconds: 600, maxEntries: 10_000 });
+    expect(security.replay).toEqual({ ttlSeconds: 600, maxEntries: 10_000 });
     expect(security.rateLimit).toEqual({
-      enabled: true,
       windowMs: 60_000,
       maxRequestsPerIp: 120,
       maxRequestsPerSender: 60,

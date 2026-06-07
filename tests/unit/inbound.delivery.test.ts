@@ -1,61 +1,28 @@
 import type { ReplyPayload } from "openclaw/plugin-sdk/core";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../../src/types.js";
+import type { CoreConfig, ResolvedGroupMeAccount } from "../../src/types.js";
+import {
+  buildAccount as baseAccount,
+  buildMessage,
+  buildRuntimeEnv,
+  createInboundCoreMock,
+} from "./helpers/inbound.js";
 
-const core = vi.hoisted(() => {
-  const fns = {
-    activityRecord: vi.fn(),
-    resolveAgentRoute: vi.fn(() => ({
-      agentId: "agent-main",
-      sessionKey: "session-main",
-      accountId: "default",
-    })),
-    buildMentionRegexes: vi.fn(() => []),
-    shouldHandleTextCommands: vi.fn(() => false),
-    hasControlCommand: vi.fn(() => false),
-    resolveEnvelopeFormatOptions: vi.fn(() => ({})),
-    resolveStorePath: vi.fn(() => "/tmp/groupme-session"),
-    readSessionUpdatedAt: vi.fn(() => undefined),
-    formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
-    finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
-    recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async (params: DispatcherParams) => {
-      await params.dispatcherOptions.deliver(core.nextPayload);
-    }),
-    chunkMarkdownText: vi.fn((text: string, limit: number) =>
-      text.length > limit ? [text.slice(0, limit), text.slice(limit)] : [text],
-    ),
+type DispatcherParams = {
+  dispatcherOptions: {
+    deliver: (payload: ReplyPayload) => Promise<void>;
   };
+};
 
-  return {
-    nextPayload: { text: "reply" } as ReplyPayload,
-    fns,
-    runtime: {
-      channel: {
-        activity: { record: fns.activityRecord },
-        routing: { resolveAgentRoute: fns.resolveAgentRoute },
-        mentions: { buildMentionRegexes: fns.buildMentionRegexes },
-        commands: { shouldHandleTextCommands: fns.shouldHandleTextCommands },
-        text: {
-          hasControlCommand: fns.hasControlCommand,
-          chunkMarkdownText: fns.chunkMarkdownText,
-        },
-        reply: {
-          resolveEnvelopeFormatOptions: fns.resolveEnvelopeFormatOptions,
-          formatAgentEnvelope: fns.formatAgentEnvelope,
-          finalizeInboundContext: fns.finalizeInboundContext,
-          dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
-        },
-        session: {
-          resolveStorePath: fns.resolveStorePath,
-          readSessionUpdatedAt: fns.readSessionUpdatedAt,
-          recordInboundSession: fns.recordInboundSession,
-        },
-      },
-    },
-  };
+const core = createInboundCoreMock();
+// This suite exercises reply delivery, so drive the dispatcher straight to the
+// deliver() callback and make chunking split on the account limit.
+core.fns.dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async (params) => {
+  await (params as DispatcherParams).dispatcherOptions.deliver(core.nextPayload);
 });
+core.fns.chunkMarkdownText.mockImplementation((text: string, limit = Number.POSITIVE_INFINITY) =>
+  text.length > limit ? [text.slice(0, limit), text.slice(limit)] : [text],
+);
 
 const sendGroupMeTextMock = vi.hoisted(() => vi.fn());
 const sendGroupMeMediaMock = vi.hoisted(() => vi.fn());
@@ -73,56 +40,13 @@ vi.mock("../../src/send.js", async (importOriginal) => {
   };
 });
 
-type DispatcherParams = {
-  dispatcherOptions: {
-    deliver: (payload: ReplyPayload) => Promise<void>;
-  };
-};
-
 import { handleGroupMeInbound } from "../../src/inbound.js";
 
-function buildRuntimeEnv(): RuntimeEnv {
-  return {
-    log: vi.fn(),
-    error: vi.fn(),
-    exit: (() => {
-      throw new Error("exit");
-    }) as RuntimeEnv["exit"],
-  };
-}
-
-function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
-  return {
-    accountId: "default",
-    enabled: true,
-    configured: true,
-    botId: "bot-1",
-    accessToken: "token-1",
-    config: {
-      requireMention: false,
-      botName: "oddclaw",
-      textChunkLimit: 5,
-    },
+function buildAccount(overrides: Partial<ResolvedGroupMeAccount> = {}): ResolvedGroupMeAccount {
+  return baseAccount({
+    config: { requireMention: false, botName: "oddclaw", textChunkLimit: 5 },
     ...overrides,
-  };
-}
-
-function buildMessage(overrides?: Partial<GroupMeCallbackData>): GroupMeCallbackData {
-  return {
-    id: "msg-1",
-    text: "hello",
-    name: "Alice",
-    senderType: "user",
-    senderId: "user-1",
-    userId: "user-1",
-    groupId: "group-1",
-    sourceGuid: "source-1",
-    createdAt: 1_700_000_000,
-    system: false,
-    avatarUrl: null,
-    attachments: [],
-    ...overrides,
-  };
+  });
 }
 
 async function deliver(payload: ReplyPayload, account = buildAccount()) {
@@ -241,6 +165,18 @@ describe("handleGroupMeInbound reply delivery", () => {
     expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(runtime.log).toHaveBeenCalledWith(
       "groupme: drop sender blocked-user (not in allowFrom)",
+    );
+  });
+
+  it("logs when session recording reports an error", async () => {
+    core.fns.recordInboundSession.mockImplementationOnce(async (params) => {
+      (params as { onRecordError: (err: unknown) => void }).onRecordError(new Error("boom"));
+    });
+
+    const { runtime } = await deliver({ text: "hello" });
+
+    expect(runtime.error).toHaveBeenCalledWith(
+      expect.stringContaining("failed updating session meta"),
     );
   });
 

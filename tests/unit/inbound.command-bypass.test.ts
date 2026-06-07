@@ -1,104 +1,19 @@
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CoreConfig, GroupMeCallbackData, ResolvedGroupMeAccount } from "../../src/types.js";
+import type { CoreConfig } from "../../src/types.js";
+import {
+  buildAccount,
+  buildMessage,
+  buildRuntimeEnv,
+  createInboundCoreMock,
+} from "./helpers/inbound.js";
 
-const core = vi.hoisted(() => {
-  const fns = {
-    activityRecord: vi.fn(),
-    resolveAgentRoute: vi.fn(() => ({
-      agentId: "agent-main",
-      sessionKey: "session-main",
-      accountId: "default",
-    })),
-    buildMentionRegexes: vi.fn(() => []),
-    shouldHandleTextCommands: vi.fn(() => true),
-    hasControlCommand: vi.fn(() => true),
-    resolveEnvelopeFormatOptions: vi.fn(() => ({})),
-    resolveStorePath: vi.fn(() => "/tmp/groupme-session"),
-    readSessionUpdatedAt: vi.fn(() => undefined),
-    formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
-    finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
-    recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async (_params: unknown) => undefined),
-    chunkMarkdownText: vi.fn((text: string) => [text]),
-  };
-
-  return {
-    fns,
-    runtime: {
-      channel: {
-        activity: { record: fns.activityRecord },
-        routing: { resolveAgentRoute: fns.resolveAgentRoute },
-        mentions: { buildMentionRegexes: fns.buildMentionRegexes },
-        commands: { shouldHandleTextCommands: fns.shouldHandleTextCommands },
-        text: {
-          hasControlCommand: fns.hasControlCommand,
-          chunkMarkdownText: fns.chunkMarkdownText,
-        },
-        reply: {
-          resolveEnvelopeFormatOptions: fns.resolveEnvelopeFormatOptions,
-          formatAgentEnvelope: fns.formatAgentEnvelope,
-          finalizeInboundContext: fns.finalizeInboundContext,
-          dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
-        },
-        session: {
-          resolveStorePath: fns.resolveStorePath,
-          readSessionUpdatedAt: fns.readSessionUpdatedAt,
-          recordInboundSession: fns.recordInboundSession,
-        },
-      },
-    },
-  };
-});
+const core = createInboundCoreMock({ handleTextCommands: true, hasControlCommand: true });
 
 vi.mock("../../src/runtime.js", () => ({
   getGroupMeRuntime: () => core.runtime,
 }));
 
 import { handleGroupMeInbound } from "../../src/inbound.js";
-
-function buildRuntimeEnv(): RuntimeEnv {
-  return {
-    log: vi.fn(),
-    error: vi.fn(),
-    exit: (() => {
-      throw new Error("exit");
-    }) as RuntimeEnv["exit"],
-  };
-}
-
-function buildAccount(overrides?: Partial<ResolvedGroupMeAccount>): ResolvedGroupMeAccount {
-  return {
-    accountId: "default",
-    enabled: true,
-    configured: true,
-    botId: "bot-1",
-    accessToken: "token-1",
-    config: {
-      requireMention: true,
-      botName: "oddclaw",
-    },
-    ...overrides,
-  };
-}
-
-function buildMessage(overrides?: Partial<GroupMeCallbackData>): GroupMeCallbackData {
-  return {
-    id: "msg-1",
-    text: "/help",
-    name: "Alice",
-    senderType: "user",
-    senderId: "user-1",
-    userId: "user-1",
-    groupId: "group-1",
-    sourceGuid: "source-1",
-    createdAt: 1_700_000_000,
-    system: false,
-    avatarUrl: null,
-    attachments: [],
-    ...overrides,
-  };
-}
 
 describe("handleGroupMeInbound command bypass security", () => {
   beforeEach(() => {
@@ -108,10 +23,8 @@ describe("handleGroupMeInbound command bypass security", () => {
   });
 
   it("blocks command bypass when allowFrom is empty and requireAllowFrom is true", async () => {
-    const runtime = buildRuntimeEnv();
-
     await handleGroupMeInbound({
-      message: buildMessage(),
+      message: buildMessage({ text: "/help" }),
       account: buildAccount({
         config: {
           requireMention: true,
@@ -125,7 +38,7 @@ describe("handleGroupMeInbound command bypass security", () => {
         },
       }),
       config: { commands: { useAccessGroups: false } } as CoreConfig,
-      runtime,
+      runtime: buildRuntimeEnv(),
       groupHistories: new Map(),
       historyLimit: 20,
     });
@@ -134,10 +47,8 @@ describe("handleGroupMeInbound command bypass security", () => {
   });
 
   it("allows command bypass when explicitly configured", async () => {
-    const runtime = buildRuntimeEnv();
-
     await handleGroupMeInbound({
-      message: buildMessage(),
+      message: buildMessage({ text: "/help" }),
       account: buildAccount({
         config: {
           requireMention: true,
@@ -151,7 +62,7 @@ describe("handleGroupMeInbound command bypass security", () => {
         },
       }),
       config: { commands: { useAccessGroups: false } } as CoreConfig,
-      runtime,
+      runtime: buildRuntimeEnv(),
       groupHistories: new Map(),
       historyLimit: 20,
     });
@@ -160,7 +71,6 @@ describe("handleGroupMeInbound command bypass security", () => {
   });
 
   it("requires mention for commands in strict mode", async () => {
-    const runtime = buildRuntimeEnv();
     const groupHistories = new Map();
 
     await handleGroupMeInbound({
@@ -179,7 +89,7 @@ describe("handleGroupMeInbound command bypass security", () => {
         },
       }),
       config: { commands: { useAccessGroups: true } } as CoreConfig,
-      runtime,
+      runtime: buildRuntimeEnv(),
       groupHistories,
       historyLimit: 20,
     });

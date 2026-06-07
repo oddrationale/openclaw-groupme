@@ -53,7 +53,7 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 
 ### Configuration
 
-`src/types.ts` defines all config types. `src/config-schema.ts` provides Zod validation. `src/accounts.ts` handles multi-account resolution with config inheritance and env var fallback (`GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, etc.).
+`src/types.ts` defines all config types. `src/config-schema.ts` provides Zod validation. `src/accounts.ts` handles multi-account resolution with config inheritance (top-level fields → named account). It does **not** read `process.env` — env-backed secrets (`GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, `GROUPME_CALLBACK_TOKEN`) are declared in `openclaw.plugin.json` (`channelEnvVars`) and resolved by the OpenClaw runtime as SecretRefs, not by `accounts.ts`.
 
 `src/security.ts` exports `resolveGroupMeSecurity()` which merges user config with secure defaults (replay enabled, rate limiting enabled, private networks blocked, secrets redacted).
 

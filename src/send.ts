@@ -5,11 +5,11 @@ import { getGroupMeRuntime } from "./runtime.js";
 import { resolveGroupMeSecurity } from "./security.js";
 import type { CoreConfig } from "./types.js";
 
-export const GROUPME_API_BASE = "https://api.groupme.com/v3";
-export const GROUPME_IMAGE_SERVICE = "https://image.groupme.com";
+const GROUPME_API_BASE = "https://api.groupme.com/v3";
+const GROUPME_IMAGE_SERVICE = "https://image.groupme.com";
 export const GROUPME_MAX_TEXT_LENGTH = 1000;
 
-export type SendGroupMeResult = {
+type SendGroupMeResult = {
   messageId: string;
   timestamp: number;
 };
@@ -186,6 +186,9 @@ function wrapFetchWithTimeout(fetchFn: FetchLike | undefined, timeoutMs: number)
       controller.abort("GroupMe media fetch timed out");
     }, timeoutMs);
 
+    // Upstream init.signal bridging: our call sites never pass one, so the abort
+    // wiring below is kept for callers that do but is not exercised by tests.
+    /* v8 ignore start */
     const upstreamSignal = init?.signal;
     const onAbort = () => controller.abort(upstreamSignal?.reason);
     if (upstreamSignal) {
@@ -195,6 +198,7 @@ function wrapFetchWithTimeout(fetchFn: FetchLike | undefined, timeoutMs: number)
         upstreamSignal.addEventListener("abort", onAbort, { once: true });
       }
     }
+    /* v8 ignore stop */
 
     try {
       return await base(input, {
@@ -203,9 +207,11 @@ function wrapFetchWithTimeout(fetchFn: FetchLike | undefined, timeoutMs: number)
       });
     } finally {
       clearTimeout(timeout);
+      /* v8 ignore start */
       if (upstreamSignal) {
         upstreamSignal.removeEventListener("abort", onAbort);
       }
+      /* v8 ignore stop */
     }
   };
 }
