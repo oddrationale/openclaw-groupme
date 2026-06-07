@@ -1,6 +1,22 @@
 # openclaw-groupme
 
-An [OpenClaw](https://github.com/oddrationale/openclaw) channel plugin that brings your AI agent into GroupMe group chats. It hooks into GroupMe's Bot API via webhooks so your agent can receive messages, understand context, and reply — all within the group conversations your team (or friends) are already having. Group chats only; DMs are not supported by the GroupMe Bot API.
+[![npm version](https://img.shields.io/npm/v/openclaw-groupme.svg)](https://www.npmjs.com/package/openclaw-groupme)
+[![npm downloads](https://img.shields.io/npm/dm/openclaw-groupme.svg)](https://www.npmjs.com/package/openclaw-groupme)
+[![CI](https://github.com/oddrationale/openclaw-groupme/actions/workflows/ci.yml/badge.svg)](https://github.com/oddrationale/openclaw-groupme/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/oddrationale/openclaw-groupme/actions/workflows/codeql.yml/badge.svg)](https://github.com/oddrationale/openclaw-groupme/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/node/v/openclaw-groupme.svg)](https://nodejs.org)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A5%202026.6.1-6f42c1.svg)](https://github.com/openclaw/openclaw)
+
+An [OpenClaw](https://github.com/openclaw/openclaw) channel plugin that brings your AI agent into GroupMe group chats. It hooks into GroupMe's Bot API via webhooks so your agent can receive messages, understand context, and reply — all within the group conversations your team (or friends) are already having. Group chats only; DMs are not supported by the GroupMe Bot API.
+
+## Requirements
+
+- **OpenClaw** `>= 2026.6.1` — this plugin targets the 2026.6.1 plugin SDK.
+- **Node.js** `>= 22.19.0` — matches OpenClaw's runtime.
+- A reachable, public **HTTPS** endpoint for the GroupMe callback (see [Prerequisites](#prerequisites)).
+
+> New to OpenClaw? Start with the [OpenClaw docs](https://docs.openclaw.ai) and the [channels overview](https://docs.openclaw.ai/channels).
 
 ## Install
 
@@ -20,7 +36,7 @@ After installing, restart the gateway so it picks up the new plugin:
 openclaw gateway restart
 ```
 
-That's it — the plugin is loaded and ready to configure.
+That's it — the plugin is loaded and ready to configure. (It ships compiled, so there's no build step on your end.)
 
 ## Prerequisites
 
@@ -66,31 +82,33 @@ The interactive wizard is the easiest way to get started. It creates a new Group
 openclaw channels add
 ```
 
-**2.** When asked "Configure chat channels now?", select **Yes**.
+> You can also reach the same GroupMe wizard from the broader setup flows: `openclaw configure --section channels` or the first-run `openclaw onboard`.
 
-**3.** Use the arrow keys to select **GroupMe** from the channel list.
+**2.** Choose **GroupMe** from the channel list (use the arrow keys to select it).
 
-**4.** Enter a **bot name**. This is the display name your bot will use in the group (e.g., `openclaw`). This name is also used for mention detection.
+**3.** Enter a **bot name**. This is the display name your bot will use in the group (e.g., `openclaw`). This name is also used for mention detection.
 
-**5.** Paste your **GroupMe access token** when prompted.
+**4.** Paste your **GroupMe access token** when prompted.
 
-**6.** The wizard fetches your groups from GroupMe. **Select the group** you want the bot to live in.
+**5.** The wizard fetches your groups from GroupMe. **Select the group** you want the bot to live in.
 
-**7.** Choose whether to **require an @mention**:
+**6.** Choose whether to **require an @mention**:
    - **Yes** — The bot only responds when someone mentions it by name (e.g., "hey @openclaw, what's the weather?"). This is great for groups with multiple people where you don't want the bot jumping into every conversation.
    - **No** — The bot responds to every message in the group. Perfect if you're the only human in the group and want a direct chat experience.
 
-**8.** Enter the **public domain** that will host your callback URL. This should be the domain name (or public IP) that can reach your OpenClaw gateway — for example, `bot.example.com`. The wizard generates a secure callback URL with a random path and secret token.
+**7.** Enter the **public domain** that will host your callback URL. This should be the domain name (or public IP) that can reach your OpenClaw gateway — for example, `bot.example.com`. The wizard generates a secure callback URL with a random path and secret token, then registers the bot with GroupMe.
 
-**9.** The wizard registers the bot with GroupMe and writes the config. You'll see a summary of what was created.
+**8.** The wizard writes the config and shows a summary of what was created.
 
-**10.** Restart the gateway:
+**9.** Restart the gateway:
 
 ```bash
 openclaw gateway restart
 ```
 
-**11.** Send a test message in the GroupMe group. If everything is wired up correctly, your bot should respond. Make sure your reverse proxy or port forwarding is configured to route the callback URL to your gateway.
+**10.** Send a test message in the GroupMe group. If everything is wired up correctly, your bot should respond. Make sure your reverse proxy or port forwarding is configured to route the callback URL to your gateway.
+
+> **After the wizard — hardening secrets (recommended for production):** the wizard writes your `accessToken`, `botId`, and `callbackToken` as plaintext literals in `openclaw.json`. That's fine for local testing, but for production you should migrate them to [SecretRefs](#secrets) so no plaintext credentials live in your config. See [Secrets](#secrets) below.
 
 ## Setup: Non-Interactive CLI
 
@@ -120,18 +138,20 @@ openclaw channels add --channel groupme \
 | ---- | -------------- | ----------- |
 | `--token` | `botId` | Your GroupMe Bot ID |
 | `--access-token` | `accessToken` | Your GroupMe access token |
-| `--webhook-url` | `webhookPath` | Relative webhook route path |
-| `--webhook-path` | `webhookPath` | Relative webhook route path |
+| `--webhook-url` | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Full webhook URL; the path and `k` token are extracted |
+| `--webhook-path` | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Relative webhook route path |
 | `--account` | account ID | Named account identifier |
 | `--name` | `name` | Display name for the account |
 
-> **Note:** The non-interactive CLI does not prompt for `botName`, `groupId`, `requireMention`, `publicDomain`, or `callbackToken`. Add those manually afterward, or use the interactive wizard to generate complete webhook settings.
+> **Note:** The non-interactive CLI does not prompt for `botName`, `groupId`, `requireMention`, `publicDomain`, or `callbackToken`. Add those manually afterward (a `?k=<token>` on `--webhook-path`/`--webhook-url` is the one exception — it's parsed into `callbackToken`), or use the interactive wizard to generate complete webhook settings.
 
 After adding the channel, make sure the callback URL you gave GroupMe uses the configured `webhookPath` and `callbackToken`. Then restart the gateway:
 
 ```bash
 openclaw gateway restart
 ```
+
+Run `openclaw channels add --help` to see the full list of per-channel flags.
 
 ## Manual Config Example
 
@@ -155,9 +175,49 @@ If you prefer editing config files directly, here's what a complete setup looks 
 }
 ```
 
+## Multiple Accounts
+
+Each GroupMe bot is bound to a single group, so running the bot in more than one group means configuring more than one account. Top-level fields act as the `default` account, and additional accounts live under `accounts.<id>`. Named accounts inherit any fields you don't override.
+
+```json
+{
+  "channels": {
+    "groupme": {
+      "enabled": true,
+      "defaultAccount": "family",
+      "botName": "openclaw",
+      "accounts": {
+        "family": {
+          "name": "Family Bot",
+          "accessToken": "FAMILY_ACCESS_TOKEN",
+          "botId": "FAMILY_BOT_ID",
+          "groupId": "FAMILY_GROUP_ID",
+          "publicDomain": "bot.example.com",
+          "webhookPath": "/groupme/family-a1b2c3",
+          "callbackToken": "FAMILY_SECRET_TOKEN",
+          "requireMention": false
+        },
+        "work": {
+          "name": "Work Bot",
+          "accessToken": "WORK_ACCESS_TOKEN",
+          "botId": "WORK_BOT_ID",
+          "groupId": "WORK_GROUP_ID",
+          "publicDomain": "bot.example.com",
+          "webhookPath": "/groupme/work-d4e5f6",
+          "callbackToken": "WORK_SECRET_TOKEN",
+          "requireMention": true
+        }
+      }
+    }
+  }
+}
+```
+
+Each account needs its **own** `webhookPath` and `callbackToken`, since each registered bot has its own callback URL.
+
 ## Reconfiguring an Existing Setup
 
-If GroupMe is already configured and you run `openclaw configure` again, you'll get a menu of targeted actions instead of repeating the full wizard:
+If GroupMe is already configured and you run `openclaw configure --section channels` (or `openclaw channels add`) again, you'll get a menu of targeted actions instead of repeating the full wizard:
 
 - **Skip** — leave everything as-is
 - **Rotate access token** — replace the stored access token (validates the new token by fetching your groups)
@@ -239,6 +299,8 @@ Every incoming webhook request goes through this gauntlet before your agent ever
 6. **Group binding** — Verifies the inbound `group_id` matches the configured `groupId`
 7. **Replay protection** — SHA-256 keyed deduplication with a sliding TTL window
 8. **Rate limiting** — Per-IP, per-sender, and global concurrency caps
+
+Accepted requests get an immediate `200 ok` and the message is processed asynchronously, so GroupMe never waits on your agent.
 
 ### Outbound Media Security
 
@@ -326,7 +388,9 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 
 ## Secrets
 
-`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, or use SecretRefs for env/file/exec-backed secrets:
+`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, but **for production the recommended approach is SecretRefs** so no plaintext credentials live in your config — this matches OpenClaw's [secrets guidance](https://docs.openclaw.ai/gateway/secrets) and how official channels like Slack and Discord document setup. Plaintext is fully supported and fine for quick local testing.
+
+The plugin does **not** read environment variables on its own. The `GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, and `GROUPME_CALLBACK_TOKEN` names it declares (as `channelEnvVars`) are what OpenClaw surfaces as **env-backed SecretRefs** and for setup tooling — to actually use them, reference them from config with a SecretRef (shown below), or let the setup wizard write the config for you. Setting those env vars alone, without a SecretRef in config, is not enough to configure the channel.
 
 ```json
 {
@@ -342,10 +406,25 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 }
 ```
 
+SecretRefs also support `file`- and `exec`-backed providers, and work per account (under `accounts.<id>`), not just the default account.
+
+### Migrating wizard-written plaintext to SecretRefs
+
+The setup wizard writes plaintext credentials. To convert them to SecretRefs (and scrub the plaintext residue), use OpenClaw's secrets workflow — GroupMe's `botId`, `accessToken`, and `callbackToken` are registered targets, so they show up in the planner automatically:
+
+```bash
+openclaw secrets configure          # plan the migration (interactive)
+openclaw secrets apply --from <plan> # write SecretRefs and scrub plaintext
+openclaw secrets audit --check       # verify no plaintext residue remains
+openclaw secrets reload              # re-resolve refs into the runtime snapshot
+```
+
 ## Config Reference
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
+| `enabled` | boolean | `true` | Whether the GroupMe channel/account is active; only an explicit `false` disables it. An account still needs a `botId` before it will actually run. |
+| `name` | string | — | Display name for the account |
 | `botId` | secret input | — | GroupMe Bot ID |
 | `accessToken` | secret input | — | GroupMe access token (required for image uploads and the interactive wizard) |
 | `callbackToken` | secret input | — | Secret expected in the inbound `k` query parameter |
@@ -354,12 +433,18 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 | `publicDomain` | string | — | Public domain where the gateway is reachable (e.g., `bot.example.com`) |
 | `webhookPath` | string | `/groupme` | Relative webhook route path |
 | `requireMention` | boolean | `true` | Only respond when mentioned by name |
-| `historyLimit` | number | `20` | Max buffered messages per group (when `requireMention: true`) |
+| `historyLimit` | number | `20` | Max buffered messages per group (when `requireMention: true`); `0` disables buffering |
 | `mentionPatterns` | string[] | — | Custom regex patterns for mention detection |
 | `allowFrom` | array | — | Sender allowlist (`"*"` allows everyone) |
-| `textChunkLimit` | number | `1000` | Max characters per outbound text chunk |
+| `textChunkLimit` | number | `1000` | Max characters per outbound text chunk (capped at GroupMe's 1000-char limit) |
+| `responsePrefix` | string | — | Text prepended to each outbound reply |
+| `blockStreaming` | boolean | unset (OpenClaw default) | Override block streaming for this channel. When unset, OpenClaw's dispatcher default applies; set `true` to stream completed assistant blocks as separate messages, or `false` to send a single final reply |
+| `blockStreamingCoalesce` | object | — | Fine-tunes how streamed blocks are coalesced (see OpenClaw docs) |
+| `markdown` | object | — | Markdown rendering overrides for outbound messages |
 | `mediaMaxMb` | number | — | Max size (MB) for **inbound** media the OpenClaw runtime fetches from GroupMe. Distinct from `security.media.maxDownloadBytes`, which caps **outbound** media the bot downloads before re-uploading. |
 | `security` | object | — | Security overrides (see [Security](#security) section above) |
+| `accounts` | object | — | Named accounts (`accounts.<id>`), each accepting the fields above |
+| `defaultAccount` | string | — | Which named account is the default for outbound routing |
 
 ## Webhook URL Format
 
@@ -435,6 +520,12 @@ openclaw channels logs --channel groupme
 ```bash
 openclaw channels status --probe
 ```
+
+## Resources
+
+- [OpenClaw documentation](https://docs.openclaw.ai) · [Channels](https://docs.openclaw.ai/channels) · [Plugins](https://docs.openclaw.ai/plugins)
+- [GroupMe developer portal](https://dev.groupme.com) · [Bots](https://dev.groupme.com/bots)
+- [Contributing guide](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
