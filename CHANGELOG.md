@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.5.0...openclaw-groupme-v0.5.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* validate ClawHub publish before npm publish in release workflow ([#66](https://github.com/oddrationale/openclaw-groupme/issues/66)) ([e3de7de](https://github.com/oddrationale/openclaw-groupme/commit/e3de7de131cc05c117cf8e0ac747466714833d4e))
+
 ## [0.5.0](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.4.4...openclaw-groupme-v0.5.0) (2026-06-07)
 
 
