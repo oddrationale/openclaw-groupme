@@ -386,7 +386,9 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 
 ## Secrets
 
-`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, or use SecretRefs for env/file/exec-backed secrets. The plugin also declares `GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, and `GROUPME_CALLBACK_TOKEN` as channel env vars, so the OpenClaw runtime can resolve those environment variables for the default account automatically.
+`botId`, `accessToken`, and `callbackToken` are OpenClaw secret inputs. You can store literal values, or use SecretRefs for env/file/exec-backed secrets.
+
+The plugin does **not** read environment variables on its own. The `GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, and `GROUPME_CALLBACK_TOKEN` names it declares (as `channelEnvVars`) are what OpenClaw surfaces as **env-backed SecretRefs** and for setup tooling — to actually use them, reference them from config with a SecretRef (shown below), or let the setup wizard write the config for you. Setting those env vars alone, without a SecretRef in config, is not enough to configure the channel.
 
 ```json
 {
@@ -406,7 +408,7 @@ Include a `proxy` block to enable trusted-proxy validation. This is useful when 
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `enabled` | boolean | `false` | Whether the GroupMe channel (or account) is active |
+| `enabled` | boolean | `true` | Whether the GroupMe channel/account is active; only an explicit `false` disables it. An account still needs a `botId` before it will actually run. |
 | `name` | string | — | Display name for the account |
 | `botId` | secret input | — | GroupMe Bot ID |
 | `accessToken` | secret input | — | GroupMe access token (required for image uploads and the interactive wizard) |
