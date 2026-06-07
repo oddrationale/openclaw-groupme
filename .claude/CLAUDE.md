@@ -116,7 +116,7 @@ For example, a breaking modernization PR should be squash-merged with a title li
 feat!: modernize GroupMe channel for OpenClaw 2026.6.1
 ```
 
-Do not squash-merge a releasable PR with a descriptive but non-conventional title such as `Modernize GroupMe for OpenClaw 2026.6.1 and add repo tooling`, because Release Please will skip it as non-user-facing.
+Do not squash-merge a releasable PR with a descriptive but non-conventional title such as `Modernize GroupMe for OpenClaw 2026.6.1 and add repo tooling`, because Release Please will not recognize it as a release-triggering Conventional Commit and will skip the release.
 
 ## Dependencies
 
