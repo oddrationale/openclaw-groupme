@@ -1,3 +1,4 @@
+import { SsrFBlockedError } from "openclaw/plugin-sdk/infra-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { setGroupMeRuntime } from "../../src/runtime.js";
 import {
@@ -531,5 +532,168 @@ describe("high-level send helpers", () => {
       // Reset the global GroupMe runtime to avoid cross-test interference.
       setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
     }
+  });
+
+  it("downloads non-streaming media bodies that fit under the limit", async () => {
+    const cfg: CoreConfig = {
+      channels: { groupme: { botId: "bot-1", accessToken: "token-1" } },
+    };
+    const download = new Response(Buffer.from("img"), {
+      headers: { "content-type": "image/png" },
+    });
+    Object.defineProperty(download, "body", { value: null });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(download)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/new" } }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 201 }));
+
+    await sendGroupMeMedia({
+      cfg,
+      to: "any",
+      text: "caption",
+      mediaUrl: "https://example.com/image.png",
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("arms a request timeout around the media download fetch", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: { media: { requestTimeoutMs: 1 } },
+        },
+      },
+    };
+    const slowDownload = () =>
+      new Promise<Response>((resolve) =>
+        setTimeout(
+          () =>
+            resolve(new Response(Buffer.from("img"), { headers: { "content-type": "image/png" } })),
+          10,
+        ),
+      );
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(slowDownload)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/new" } }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 201 }));
+
+    await sendGroupMeMedia({
+      cfg,
+      to: "any",
+      text: "caption",
+      mediaUrl: "https://example.com/image.png",
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("rethrows non-Error runtime media failures unchanged", async () => {
+    try {
+      const cfg: CoreConfig = {
+        channels: { groupme: { botId: "bot-1", accessToken: "token-1" } },
+      };
+      setGroupMeRuntime({
+        channel: {
+          media: {
+            fetchRemoteMedia: vi.fn(async () => {
+              throw "string failure";
+            }),
+          },
+        },
+      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+      await expect(
+        sendGroupMeMedia({
+          cfg,
+          to: "any",
+          text: "caption",
+          mediaUrl: "https://example.com/image.png",
+        }),
+      ).rejects.toBe("string failure");
+    } finally {
+      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+    }
+  });
+
+  it("maps a runtime SsrFBlockedError instance to the SSRF policy error", async () => {
+    try {
+      const cfg: CoreConfig = {
+        channels: { groupme: { botId: "bot-1", accessToken: "token-1" } },
+      };
+      setGroupMeRuntime({
+        channel: {
+          media: {
+            fetchRemoteMedia: vi.fn(async () => {
+              throw new SsrFBlockedError("blocked by runtime");
+            }),
+          },
+        },
+      } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+
+      await expect(
+        sendGroupMeMedia({
+          cfg,
+          to: "any",
+          text: "caption",
+          mediaUrl: "https://example.com/image.png",
+        }),
+      ).rejects.toThrow("SSRF policy");
+    } finally {
+      setGroupMeRuntime(undefined as unknown as Parameters<typeof setGroupMeRuntime>[0]);
+    }
+  });
+
+  it("skips empty stream chunks while reading media bodies", async () => {
+    const cfg: CoreConfig = {
+      channels: {
+        groupme: {
+          botId: "bot-1",
+          accessToken: "token-1",
+          security: { media: { maxDownloadBytes: 1024 } },
+        },
+      },
+    };
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([]));
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(body, { headers: { "content-type": "image/png" } }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/new" } }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 201 }));
+
+    await sendGroupMeMedia({
+      cfg,
+      to: "any",
+      text: "caption",
+      mediaUrl: "https://example.com/image.png",
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

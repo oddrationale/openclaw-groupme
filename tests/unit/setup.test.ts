@@ -236,6 +236,16 @@ describe("setup.applyAccountConfig", () => {
     expect(section.botId).toBe("bot123");
   });
 
+  it("falls back to a sanitized path when the webhook url cannot be parsed", () => {
+    const result = setup.applyAccountConfig({
+      cfg: emptyCfg(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      input: { token: "bot123", webhookUrl: "http://%" },
+    });
+    const section = gmSection(result);
+    expect(section.webhookPath).toBe("/http://%");
+  });
+
   it("omits optional fields that were not provided", () => {
     const result = setup.applyAccountConfig({
       cfg: emptyCfg(),

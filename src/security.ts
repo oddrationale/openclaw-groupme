@@ -17,12 +17,10 @@ export type ResolvedGroupMeSecurity = {
   callbackRejectStatus: 404;
   groupId: string;
   replay: {
-    enabled: boolean;
     ttlSeconds: number;
     maxEntries: number;
   };
   rateLimit: {
-    enabled: boolean;
     windowMs: number;
     maxRequestsPerIp: number;
     maxRequestsPerSender: number;
@@ -52,7 +50,7 @@ export type ResolvedGroupMeSecurity = {
   };
 };
 
-export type GroupMeWebhookRequestContext = {
+type GroupMeWebhookRequestContext = {
   remoteIp: string;
   clientIp: string;
   host: string;
@@ -61,7 +59,7 @@ export type GroupMeWebhookRequestContext = {
   usingForwardedHeaders: boolean;
 };
 
-export type GroupMeProxyValidation =
+type GroupMeProxyValidation =
   | { ok: true; context: GroupMeWebhookRequestContext }
   | {
       ok: false;
@@ -82,7 +80,7 @@ function normalizeIpCandidate(raw: string): string {
     return "";
   }
   if (value.includes(",")) {
-    value = value.split(",")[0]?.trim() ?? "";
+    value = value.split(",")[0].trim();
   }
   if (value.startsWith("[")) {
     const endIndex = value.indexOf("]");
@@ -104,10 +102,10 @@ function normalizeIpCandidate(raw: string): string {
     const maybeWithPort = value.split(":");
     if (
       maybeWithPort.length === 2 &&
-      /^\d+$/.test(maybeWithPort[1] ?? "") &&
-      isIP(maybeWithPort[0] ?? "") === 4
+      /^\d+$/.test(maybeWithPort[1]) &&
+      isIP(maybeWithPort[0]) === 4
     ) {
-      value = maybeWithPort[0] ?? "";
+      value = maybeWithPort[0];
     }
   }
   return isIP(value) === 0 ? "" : value;
@@ -130,7 +128,7 @@ function normalizeHost(value: string): string {
     return "";
   }
   if (host.includes(",")) {
-    host = host.split(",")[0]?.trim() ?? "";
+    host = host.split(",")[0].trim();
   }
   if (!host) {
     return "";
@@ -146,8 +144,8 @@ function normalizeHost(value: string): string {
     return "";
   }
   const maybeWithoutPort = host.split(":");
-  if (maybeWithoutPort.length === 2 && /^\d+$/.test(maybeWithoutPort[1] ?? "")) {
-    host = maybeWithoutPort[0] ?? "";
+  if (maybeWithoutPort.length === 2 && /^\d+$/.test(maybeWithoutPort[1])) {
+    host = maybeWithoutPort[0];
   }
   return host.trim();
 }
@@ -156,12 +154,16 @@ function parseProxyRules(entries: string[]): ProxyRule[] {
   const rules: ProxyRule[] = [];
   for (const entry of entries) {
     const raw = entry.trim();
+    // resolveGroupMeSecurity already trims and Boolean-filters these entries, so a
+    // blank value never reaches this guard; kept as defense in depth.
+    /* v8 ignore start */
     if (!raw) {
       continue;
     }
+    /* v8 ignore stop */
     if (raw.includes("/")) {
       const [network, prefixRaw] = raw.split("/");
-      const normalizedNetwork = normalizeIpCandidate(network ?? "");
+      const normalizedNetwork = normalizeIpCandidate(network);
       const ipVersion = isIP(normalizedNetwork);
       if (!ipVersion) {
         continue;
@@ -249,12 +251,10 @@ export function resolveGroupMeSecurity(
     callbackRejectStatus: 404,
     groupId,
     replay: {
-      enabled: true,
       ttlSeconds: positiveIntOrDefault(security.replay?.ttlSeconds, 600),
       maxEntries: positiveIntOrDefault(security.replay?.maxEntries, 10_000),
     },
     rateLimit: {
-      enabled: true,
       windowMs: positiveIntOrDefault(security.rateLimit?.windowMs, 60_000),
       maxRequestsPerIp: positiveIntOrDefault(security.rateLimit?.maxRequestsPerIp, 120),
       maxRequestsPerSender: positiveIntOrDefault(security.rateLimit?.maxRequestsPerSender, 60),

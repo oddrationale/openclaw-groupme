@@ -25,7 +25,7 @@ import type { CoreConfig, ResolvedGroupMeAccount, WebhookDecision } from "./type
 const GROUPME_WEBHOOK_MAX_BODY_BYTES = 64 * 1024;
 const GROUPME_WEBHOOK_BODY_TIMEOUT_MS = 15_000;
 
-export type GroupMeWebhookHandlerParams = {
+type GroupMeWebhookHandlerParams = {
   account: ResolvedGroupMeAccount;
   config: CoreConfig;
   runtime: RuntimeEnv;
@@ -35,13 +35,13 @@ export type GroupMeWebhookHandlerParams = {
 function rejectDecision(params: {
   status: number;
   reason: string;
-  logLevel?: "debug" | "warn";
+  logLevel: "debug" | "warn";
 }): WebhookDecision {
   return {
     kind: "reject",
     status: params.status,
     reason: params.reason,
-    logLevel: params.logLevel ?? "warn",
+    logLevel: params.logLevel,
   };
 }
 
@@ -70,6 +70,9 @@ function asRequestBodyErrorCode(
   ) {
     return value;
   }
+  // Only ever called with the three codes above (INVALID_JSON returns earlier in
+  // the handler), so this null path is unreachable defense-in-depth.
+  /* v8 ignore next */
   return null;
 }
 
@@ -138,14 +141,13 @@ async function decideWebhookRequest(params: {
     emptyObjectOnEmpty: false,
   });
   if (!body.ok) {
-    let status: number;
-    if (body.code === "PAYLOAD_TOO_LARGE") {
-      status = 413;
-    } else if (body.code === "REQUEST_BODY_TIMEOUT") {
-      status = 408;
-    } else {
-      status = 400;
-    }
+    // Map the SDK body-error code to an HTTP status; unmapped codes (INVALID_JSON,
+    // CONNECTION_CLOSED, …) fall back to 400.
+    const bodyErrorStatus: Record<string, number | undefined> = {
+      PAYLOAD_TOO_LARGE: 413,
+      REQUEST_BODY_TIMEOUT: 408,
+    };
+    const status = bodyErrorStatus[body.code] ?? 400;
     return rejectDecision({
       status,
       reason: `body_${body.code.toLowerCase()}`,
@@ -183,19 +185,13 @@ async function decideWebhookRequest(params: {
     });
   }
 
-  if (params.security.replay.enabled) {
-    const replay = params.replayCache.checkAndRemember(buildReplayKey(message));
-    if (replay.kind === "duplicate") {
-      return rejectDecision({
-        status: 200,
-        reason: "duplicate_replay",
-        logLevel: "debug",
-      });
-    }
-  }
-
-  if (!params.security.rateLimit.enabled) {
-    return { kind: "accept", message, release: () => undefined };
+  const replay = params.replayCache.checkAndRemember(buildReplayKey(message));
+  if (replay.kind === "duplicate") {
+    return rejectDecision({
+      status: 200,
+      reason: "duplicate_replay",
+      logLevel: "debug",
+    });
   }
 
   const rate = params.rateLimiter.evaluate({
@@ -222,6 +218,11 @@ export function createGroupMeWebhookHandler(
   if (!security.groupId) {
     params.runtime.error?.(
       "groupme: WARNING — no groupId configured; all inbound messages will be rejected. Set groupId in your account config.",
+    );
+  }
+  if (!security.callbackToken) {
+    params.runtime.error?.(
+      "groupme: WARNING — no callbackToken configured; inbound callbacks are not token-authenticated. Anyone who learns the webhook path and group_id can post. Set callbackToken in your account config.",
     );
   }
   const replayCache = new GroupMeReplayCache({

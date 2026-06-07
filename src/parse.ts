@@ -174,7 +174,7 @@ export function parseGroupMeCallback(data: unknown): GroupMeCallbackData | null 
   };
 }
 
-export function hasImageAttachment(attachments: GroupMeAttachment[]): boolean {
+function hasImageAttachment(attachments: GroupMeAttachment[]): boolean {
   return attachments.some((attachment) => attachment.type === "image");
 }
 

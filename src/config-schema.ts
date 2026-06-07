@@ -67,7 +67,7 @@ const GroupMeSecuritySchema = z
   })
   .strict();
 
-export const GroupMeAccountSchemaBase = z
+const GroupMeAccountSchemaBase = z
   .object({
     name: z.string().optional(),
     enabled: z.boolean().optional(),

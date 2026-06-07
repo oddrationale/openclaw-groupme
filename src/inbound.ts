@@ -277,6 +277,14 @@ export async function handleGroupMeInbound(params: {
     envelope: envelopeOptions,
     body: bodyForAgent,
   });
+  // Snapshot-then-clear the per-group buffer. This runs synchronously before the
+  // first `await` below, so it is atomic with respect to other inbound handlers for
+  // the same group (handlers run un-awaited and concurrently up to maxConcurrent).
+  // Accepted behavior: if two mentions for the same group arrive nearly together,
+  // the first handler consumes the buffered context and the second sees an empty
+  // buffer rather than re-reading the same entries — buffered context is consumed
+  // exactly once, never duplicated. Messages buffered while a reply is in flight are
+  // preserved because the clear happens before dispatch.
   const shouldUseHistoryBuffer = requireMention && historyLimit > 0;
   const historyEntriesForContext = shouldUseHistoryBuffer
     ? [...(groupHistories.get(message.groupId) ?? [])]

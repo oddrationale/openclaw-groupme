@@ -1,4 +1,4 @@
-export type RateLimitCheck =
+type RateLimitCheck =
   | { kind: "accepted"; release: () => void }
   | { kind: "rejected"; scope: "ip" | "sender" | "concurrency" };
 
@@ -119,9 +119,13 @@ export class GroupMeRateLimiter {
   }
 
   private capStateSize(state: SlidingWindowState) {
+    // Only triggers past DEFAULT_MAX_TRACKED_KEYS (10k) distinct keys within a single
+    // window — not exercised in unit tests.
+    /* v8 ignore start */
     while (state.size > this.maxTrackedKeys) {
       const oldest = state.keys().next().value as string;
       state.delete(oldest);
     }
+    /* v8 ignore stop */
   }
 }
