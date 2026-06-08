@@ -11,6 +11,6 @@
   ],
   "project": ["**/*.ts"],
   "ignoreIssues": {
-    "src/types.ts": ["exports"]
+    "src/types.ts": ["exports", "types"]
   }
 }
