@@ -67,8 +67,8 @@
     "@vitest/coverage-v8": "^4.1.8",
     "knip": "^6.16.1",
     "lefthook": "^2.1.9",
-    "openclaw": "2026.6.10",
-    "typescript": "^6.0.3",
+    "openclaw": "2026.6.11",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
