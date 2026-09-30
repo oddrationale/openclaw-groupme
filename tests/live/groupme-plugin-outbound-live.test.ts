@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -23,6 +24,8 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
     HOME: home,
     USERPROFILE: home,
     CODEX_HOME: home,
+    // Pin state to this home even when the test process sets OPENCLAW_STATE_DIR.
+    OPENCLAW_STATE_DIR: join(home, ".openclaw"),
     NO_COLOR: "1",
     OPENCLAW_DISABLE_BONJOUR: "1",
     GROUPME_LIVE_ACCESS_TOKEN: readSecret("GROUPME_LIVE_ACCESS_TOKEN"),
@@ -140,12 +143,12 @@ describeLive("GroupMe plugin outbound live smoke", () => {
         { env },
       );
 
-      const configOutput = run(
-        process.execPath,
-        [openclawCli, "config", "get", "channels.groupme", "--json"],
-        { env },
-      );
-      const config = JSON.parse(configOutput) as {
+      // `config get` redacts SecretRef ids in OpenClaw 2026.9.x, so read the
+      // file the CLI wrote to confirm the refs (not plaintext) were stored.
+      const written = JSON.parse(
+        readFileSync(join(tempHome, ".openclaw", "openclaw.json"), "utf8"),
+      ) as { channels?: { groupme?: Record<string, unknown> } };
+      const config = (written.channels?.groupme ?? {}) as {
         botId?: unknown;
         accessToken?: unknown;
         groupId?: unknown;
