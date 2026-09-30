@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -37,7 +37,29 @@ function buildPackage(): void {
     return;
   }
   runNpm(["run", "build"]);
+  pruneStaleBuildOutputs();
   built = true;
+}
+
+/**
+ * `tsc` never deletes outputs, so JS left in dist/ by an older source layout
+ * (for example removed sidecar entrypoints) would be packed too. Remove only
+ * outputs whose `.ts` source no longer exists, so the contract tests see what a
+ * clean CI/release build ships. Pruning after the build (instead of wiping dist/
+ * first) never leaves current entrypoints missing for a concurrent packer.
+ */
+function pruneStaleBuildOutputs(): void {
+  const distRoot = join(repoRoot, "dist");
+  for (const entry of readdirSync(distRoot, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".js")) {
+      continue;
+    }
+    const output = join(entry.parentPath, entry.name);
+    const source = join(repoRoot, relative(distRoot, output)).replace(/\.js$/, ".ts");
+    if (!existsSync(source)) {
+      rmSync(output, { force: true });
+    }
+  }
 }
 
 type PackedFile = {
@@ -104,7 +126,16 @@ export function readRootPackageJson(): {
     extensions: string[];
     setupEntry: string;
     compat: { pluginApi: string };
+    build: { openclawVersion: string };
+    install: {
+      npmSpec: string;
+      clawhubSpec: string;
+      defaultChoice: string;
+      minHostVersion: string;
+    };
+    startup?: unknown;
   };
+  devDependencies: Record<string, string>;
   peerDependencies: Record<string, string>;
   engines: Record<string, string>;
 } {

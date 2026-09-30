@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -15,20 +16,37 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
     CODEX_HOME: home,
     NO_COLOR: "1",
     OPENCLAW_DISABLE_BONJOUR: "1",
+    // The vitest setup file points OPENCLAW_STATE_DIR at a temp dir for in-process
+    // tests; clear it so the CLI derives its state dir from the isolated HOME.
+    OPENCLAW_STATE_DIR: "",
     VITEST: "",
     VITEST_WORKER_ID: "",
   };
 }
 
+function readGroupMeConfig(home: string): Record<string, unknown> & {
+  accounts?: Record<string, Record<string, unknown>>;
+} {
+  const config = JSON.parse(readFileSync(join(home, ".openclaw", "openclaw.json"), "utf8")) as {
+    channels?: { groupme?: Record<string, unknown> };
+  };
+  return config.channels?.groupme ?? {};
+}
+
 describe("OpenClaw CLI plugin smoke", () => {
-  it("installs, configures, inspects, and dry-runs the channel through OpenClaw v2026.6.1", () => {
+  it("installs, configures, inspects, and dry-runs the channel through OpenClaw 2026.9.7", () => {
     const tempHome = createTempProject("openclaw-groupme-cli-");
     try {
       const tarball = packTarball(tempHome);
       const openclawCli = join(repoRoot, "node_modules", "openclaw", "openclaw.mjs");
       const env = isolatedOpenClawEnv(tempHome);
 
-      run(process.execPath, [openclawCli, "plugins", "install", tarball, "--force"], { env });
+      // Third-party archives need explicit capability consent since 2026.9.7.
+      run(
+        process.execPath,
+        [openclawCli, "plugins", "install", tarball, "--force", "--accept-capabilities"],
+        { env },
+      );
       const inspectOutput = run(
         process.execPath,
         [openclawCli, "plugins", "inspect", "groupme", "--json", "--runtime"],
@@ -85,6 +103,25 @@ describe("OpenClaw CLI plugin smoke", () => {
         }),
       );
 
+      const addHelp = run(
+        process.execPath,
+        [openclawCli, "channels", "add", "--channel", "groupme", "--help"],
+        { env },
+      );
+      for (const flag of [
+        "--bot-id <id>",
+        "--token <bot-id>",
+        "--access-token <token>",
+        "--callback-token <token>",
+        "--group-id <id>",
+        "--bot-name <name>",
+        "--webhook-path <path>",
+        "--webhook-url <url>",
+      ]) {
+        expect(addHelp, flag).toContain(flag);
+      }
+
+      // --token is kept as an alias for --bot-id.
       run(
         process.execPath,
         [
@@ -113,12 +150,16 @@ describe("OpenClaw CLI plugin smoke", () => {
         name?: string;
         botId?: string;
       };
+      // Sensitive setup fields are redacted by `config get`; the stored value is intact.
       expect(groupmeConfig).toEqual(
         expect.objectContaining({
           enabled: true,
           name: "Probe",
-          botId: "fake-bot",
+          botId: "__OPENCLAW_REDACTED__",
         }),
+      );
+      expect(readGroupMeConfig(tempHome)).toEqual(
+        expect.objectContaining({ enabled: true, name: "Probe", botId: "fake-bot" }),
       );
 
       const configuredChannelsOutput = run(
@@ -148,6 +189,35 @@ describe("OpenClaw CLI plugin smoke", () => {
       };
       expect(status.configOnly).toBe(true);
       expect(status.configuredChannels).toContain("groupme");
+
+      run(
+        process.execPath,
+        [
+          openclawCli,
+          "channels",
+          "add",
+          "--channel",
+          "groupme",
+          "--account",
+          "work",
+          "--bot-id",
+          "work-bot",
+          "--group-id",
+          "42",
+          "--webhook-url",
+          "https://bot.example.com/gm/work?k=cb-secret",
+        ],
+        { env },
+      );
+      expect(readGroupMeConfig(tempHome).accounts?.work).toEqual(
+        expect.objectContaining({
+          enabled: true,
+          botId: "work-bot",
+          groupId: "42",
+          webhookPath: "/gm/work",
+          callbackToken: "cb-secret",
+        }),
+      );
 
       const dryRunOutput = run(
         process.execPath,

@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -32,24 +32,30 @@ describe("installed package smoke test", () => {
     removeTempProject(tempProject);
   });
 
-  it("imports the installed runtime, setup, channel, and secret sidecars", () => {
+  it("imports the installed runtime entry, setup entry, and secret contract", () => {
     const script = `
       import assert from "node:assert/strict";
       import entry from "openclaw-groupme/dist/index.js";
       import setupEntry from "openclaw-groupme/dist/setup-entry.js";
-      import { groupmePlugin } from "openclaw-groupme/dist/channel-plugin-api.js";
       import { channelSecrets } from "openclaw-groupme/dist/secret-contract-api.js";
 
-      assert.equal(entry.kind, "bundled-channel-entry");
       assert.equal(entry.id, "groupme");
-      assert.equal(typeof entry.loadChannelPlugin, "function");
-      assert.equal(typeof entry.loadChannelSecrets, "function");
+      assert.equal(entry.name, "GroupMe");
+      assert.equal(typeof entry.register, "function");
       assert.equal(typeof entry.setChannelRuntime, "function");
+      assert.equal(entry.kind, undefined);
 
-      assert.equal(setupEntry.kind, "bundled-channel-setup-entry");
-      assert.equal(groupmePlugin.id, "groupme");
-      assert.equal(typeof groupmePlugin.gateway.startAccount, "function");
-      assert.equal(typeof groupmePlugin.setupWizard.configure, "function");
+      const plugin = entry.channelPlugin;
+      assert.equal(plugin.id, "groupme");
+      assert.equal(typeof plugin.gateway.startAccount, "function");
+      assert.equal(typeof plugin.message.send.text, "function");
+      assert.equal(typeof plugin.setupWizard.configure, "function");
+      assert.equal(plugin.setupContract.kind, "channel-owned");
+
+      assert.deepEqual(Object.keys(setupEntry), ["plugin"]);
+      assert.equal(setupEntry.plugin.id, "groupme");
+      assert.equal(setupEntry.plugin.setupContract, plugin.setupContract);
+      assert.equal(setupEntry.plugin.gateway, undefined);
 
       const ids = channelSecrets.secretTargetRegistryEntries.map((entry) => entry.id).sort();
       assert.deepEqual(ids, [
@@ -65,5 +71,19 @@ describe("installed package smoke test", () => {
     expect(() =>
       run("node", ["--input-type=module", "--eval", script], { cwd: tempProject }),
     ).not.toThrow();
+  });
+
+  it("installs the plugin manifest without the removed sidecar entrypoints", () => {
+    const installed = join(tempProject, "node_modules", "openclaw-groupme");
+
+    expect(existsSync(join(installed, "openclaw.plugin.json"))).toBe(true);
+    for (const removed of [
+      "dist/channel-plugin-api.js",
+      "dist/runtime-setter-api.js",
+      "dist/setup-plugin-api.js",
+      "dist/src/policy.js",
+    ]) {
+      expect(existsSync(join(installed, removed)), removed).toBe(false);
+    }
   });
 });

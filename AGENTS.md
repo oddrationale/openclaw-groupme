@@ -6,22 +6,27 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 This is **openclaw-groupme**, an OpenClaw channel plugin that connects GroupMe group chats to OpenClaw agents via webhooks. It receives inbound messages from GroupMe's callback API, routes them through a security pipeline, and dispatches replies back through the GroupMe Bot API.
 
-The plugin is published to npm as `openclaw-groupme` and loaded by the OpenClaw runtime via the `openclaw.extensions` field in `package.json`, which points to `./index.ts`. OpenClaw runs the TypeScript directly — there is no build step.
+The plugin is published to npm and ClawHub as `openclaw-groupme` and loaded by the OpenClaw runtime (>= 2026.9.7, Node >= 24.16) via `package.json#openclaw.extensions` (`./dist/index.js`) and `openclaw.setupEntry` (`./dist/setup-entry.js`). TypeScript is compiled to `dist/` by `npm run build` (run automatically by `prepack`).
 
 ## Commands
 
 ```bash
-npm test                              # Run all tests (vitest)
-npm run typecheck                     # Type-check with tsc --noEmit
-npx vitest run tests/parse.test.ts    # Run a single test file
-npx vitest run -t "accepts active"    # Run tests matching a name pattern
+npm test                                   # Unit tests (vitest)
+npm run check                              # lint + typecheck + unit + integration + build + manifest check + knip
+npm run test:e2e                           # Real OpenClaw gateway e2e (stub model, fake GroupMe API)
+npm run typecheck                          # Type-check with tsc --noEmit
+npm run manifest:sync                      # Regenerate openclaw.plugin.json channelConfigs from the zod schema
+npx vitest run tests/unit/parse.test.ts    # Run a single test file
+npx vitest run -t "accepts active"         # Run tests matching a name pattern
 ```
+
+Live suites (`npm run test:live*`) need `GROUPME_LIVE_ACCESS_TOKEN`, `GROUPME_LIVE_BOT_ID`, and `GROUPME_LIVE_GROUP_ID`; in CI they run from the manually dispatched "GroupMe Live API and Plugin Smoke" workflow.
 
 ## Architecture
 
 ### Plugin Entry Point
 
-`index.ts` registers the plugin with OpenClaw. It captures the `PluginRuntime` into a module-level singleton (`src/runtime.ts`) and registers the channel plugin object defined in `src/channel.ts`.
+`index.ts` uses `defineChannelPluginEntry` (`openclaw/plugin-sdk/channel-core`) to register the full channel plugin from `src/channel.ts` and store the `PluginRuntime` via `createPluginRuntimeStore` (`src/runtime.ts`). `setup-entry.ts` uses `defineSetupPluginEntry` with the setup-safe plugin in `src/channel.setup.ts` (metadata, config, secrets, setup contract, wizard) so disabled/unconfigured installs never load the monitor, inbound pipeline, or sender. `secret-contract-api.ts` is discovered by OpenClaw for secret-target registration.
 
 ### Inbound Webhook Pipeline
 
@@ -37,29 +42,30 @@ When a GroupMe callback hits the webhook, `src/monitor.ts` runs a sequential dec
 8. **Replay dedup** (`src/replay-cache.ts`) — SHA256-keyed sliding TTL cache
 9. **Rate limiting** (`src/rate-limit.ts`) — per-IP, per-sender, and global concurrency
 
-After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.ts` handles processing asynchronously:
-- Sender access control via `allowFrom` (`src/policy.ts`)
+After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.ts` handles processing inside `runDetachedWebhookWork` (tracked across gateway drains):
 - Mention detection with botName, regex patterns, and agent regexes (`src/parse.ts`)
-- History buffering for `requireMention: true` mode (`src/history.ts`)
-- Control command gating with configurable bypass security
-- Session recording and reply dispatch via OpenClaw runtime APIs
+- Sender allowlist (`allowFrom`), control-command authorization, and mention activation through `runtime.channel.inbound.ingress.resolveStable` (core channel ingress)
+- History buffering for `requireMention: true` mode via `createChannelHistoryWindow` (`src/history.ts`)
+- Context via `runtime.channel.inbound.buildContext` (image attachments as media facts) and dispatch via `runtime.channel.inbound.dispatch`, which records the session and delivers replies through core's durable queue (falling back to the plugin's direct `deliver`)
 
 ### Outbound
 
 `src/send.ts` handles sending messages back to GroupMe:
 - Text messages via the Bot API (`/v3/bots/post`)
 - Media: download remote image (with SSRF guard + MIME + size limits) → upload to GroupMe Image Service → send with `picture_url`
-- Uses `runtime.channel.media.fetchRemoteMedia` when available, falls back to built-in `fetchWithSsrFGuard`
+- Uses `runtime.channel.media.readRemoteMediaBuffer` when the runtime is initialized, falling back to `fetchWithSsrFGuard` (`openclaw/plugin-sdk/ssrf-runtime`)
+- Local (agent workspace) media only through a host-provided `mediaReadFile` (outbound context, or agent-scoped media roots on the inbound direct path)
+- `src/channel.ts` exposes both the `outbound` adapter and a `message` adapter (`defineChannelMessageAdapter`) that returns receipts; the Bot API returns no message id, so ids are empty rather than fabricated
 
 ### Configuration
 
-`src/types.ts` defines all config types. `src/config-schema.ts` provides Zod validation. `src/accounts.ts` handles multi-account resolution with config inheritance and env var fallback (`GROUPME_BOT_ID`, `GROUPME_ACCESS_TOKEN`, etc.).
+`src/types.ts` defines all config types. `src/config-schema.ts` provides Zod validation and config UI hints; `openclaw.plugin.json#channelConfigs.groupme` mirrors the generated JSON Schema (regenerate with `npm run manifest:sync`; `npm run manifest:check` and a unit test guard drift). `src/accounts.ts` handles multi-account resolution with config inheritance (top-level fields → named account). It does **not** read `process.env` — env-backed secrets are configured as SecretRefs and resolved by the OpenClaw runtime.
 
 `src/security.ts` exports `resolveGroupMeSecurity()` which merges user config with secure defaults (replay enabled, rate limiting enabled, private networks blocked, secrets redacted).
 
-### Onboarding
+### Setup and Onboarding
 
-`src/onboarding.ts` implements the `ChannelOnboardingAdapter` for interactive bot setup. It uses `src/groupme-api.ts` to call the GroupMe REST API (`fetchGroups`, `createBot`) and guides the user through group selection and bot creation.
+`src/setup-surface.ts` defines the channel-owned setup contract (`defineChannelSetupContract`) behind `openclaw channels add --channel groupme` flags; `package.json#openclaw.channel.setup.fields` must mirror `groupmeSetupFields` (a unit test checks). `src/onboarding.ts` implements the interactive setup wizard adapter. It uses `src/groupme-api.ts` to call the GroupMe REST API (`fetchGroups`, `createBot`) and guides the user through group selection and bot creation.
 
 ### Utilities
 
@@ -69,7 +75,8 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 
 - **All imports use `.js` extensions** — required by Node16 module resolution (`"type": "module"`)
 - **Security config uses a "resolve with defaults" pattern** — `resolveGroupMeSecurity()` fills in all defaults so downstream code never handles `undefined` security fields
-- **`PluginRuntime` is accessed via `getGroupMeRuntime()`** — a module-level singleton set once at plugin registration; test files mock `src/runtime.ts` to inject fakes
+- **`PluginRuntime` is accessed via `getGroupMeRuntime()`** — a `createPluginRuntimeStore` slot set at plugin registration; test files mock `src/runtime.ts` to inject fakes
+- **Import only typed, non-deprecated SDK subpaths** — OpenClaw retires deprecated subpaths on published dates (see its `docs/plugins/sdk-migration`); prefer focused subpaths over broad barrels such as `config-runtime`, `infra-runtime`, or `security-runtime`
 - **Tests that use `vi.mock()` must mock the `src/` path** — e.g., `vi.mock("../src/runtime.js", ...)`
 - **`FetchLike` is defined as an explicit function signature**, not `typeof fetch` (newer Node types add static properties to `fetch` that break assignability)
 
@@ -128,7 +135,7 @@ ClawHub also requires compiled JavaScript runtime output for TypeScript plugins.
 
 Do not use `openclaw/clawhub/.github/workflows/package-publish.yml` for this repo unless the package layout changes. That reusable workflow publishes a ClawPack source tree; this repo is npm-package-shaped and should publish the tarball generated by `npm pack`.
 
-Do not add the `clawhub` CLI as a root dev dependency just to publish releases. Its tooling dependencies have higher Node engine requirements than this package's runtime `engines.node: ">=18"` contract, so keeping it out of the root package avoids surprising contributors and consumers.
+Do not add the `clawhub` CLI as a root dev dependency just to publish releases. Its tooling dependencies have higher Node engine requirements than this package's runtime `engines.node` contract, so keeping it out of the root package avoids surprising contributors and consumers.
 
 For release automation, pack first and publish the generated tarball with a pinned CLI version:
 
@@ -147,18 +154,18 @@ npx --yes clawhub@0.19.1 package publish ./openclaw-groupme-0.4.1.tgz --family c
 ClawHub install docs should prefer:
 
 ```bash
-openclaw plugins install clawhub:openclaw-groupme
+openclaw plugins install clawhub:openclaw-groupme --accept-capabilities
 ```
 
 Keep the npm install path documented as an explicit alternative:
 
 ```bash
-openclaw plugins install npm:openclaw-groupme
+openclaw plugins install npm:openclaw-groupme --accept-capabilities
 ```
 
 ## Dependencies
 
 - **`zod`** (runtime) — config schema validation
-- **`openclaw`** (peer) — plugin SDK, runtime APIs, security utilities (`fetchWithSsrFGuard`, `readJsonBodyWithLimit`, etc.)
+- **`openclaw`** (peer, `>= 2026.9.7`) — plugin SDK, runtime APIs, security utilities (`fetchWithSsrFGuard`, `readJsonBodyWithLimit`, etc.)
 - **`vitest`** (dev) — test framework
 - **`typescript`** (dev) — type-checking and compilation to `dist/` during `build`/`prepack`

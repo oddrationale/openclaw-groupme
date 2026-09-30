@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
@@ -38,6 +38,13 @@ jobs:
 
       - name: Run plugin outbound live smoke
         run: npm run test:live:plugin-outbound
+        env:
+          GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
+          GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}
+          GROUPME_LIVE_GROUP_ID: ${{ secrets.GROUPME_LIVE_GROUP_ID }}
+
+      - name: Run gateway live end-to-end
+        run: npm run test:live:gateway
         env:
           GROUPME_LIVE_ACCESS_TOKEN: ${{ secrets.GROUPME_LIVE_ACCESS_TOKEN }}
           GROUPME_LIVE_BOT_ID: ${{ secrets.GROUPME_LIVE_BOT_ID }}

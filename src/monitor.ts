@@ -4,6 +4,7 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import {
   readJsonBodyWithLimit,
   requestBodyErrorToText,
+  runDetachedWebhookWork,
 } from "openclaw/plugin-sdk/webhook-request-guards";
 import { resolveGroupMeHistoryLimit } from "./history.js";
 import { handleGroupMeInbound } from "./inbound.js";
@@ -281,15 +282,21 @@ export function createGroupMeWebhookHandler(
     res.statusCode = 200;
     res.end("ok");
 
-    void handleGroupMeInbound({
-      message,
-      account: params.account,
-      config: params.config,
-      runtime: params.runtime,
-      statusSink: params.statusSink,
-      groupHistories,
-      historyLimit,
-    })
+    // GroupMe does not retry callbacks, so acknowledge first and process after.
+    // runDetachedWebhookWork must be called synchronously while the request is
+    // still admitted: it keeps the post-ack work tracked so a gateway restart or
+    // drain waits for the in-flight reply instead of cutting it off.
+    void runDetachedWebhookWork(() =>
+      handleGroupMeInbound({
+        message,
+        account: params.account,
+        config: params.config,
+        runtime: params.runtime,
+        statusSink: params.statusSink,
+        groupHistories,
+        historyLimit,
+      }),
+    )
       .catch((err) => {
         params.runtime.error?.(`groupme: inbound processing failed: ${String(err)}`);
       })

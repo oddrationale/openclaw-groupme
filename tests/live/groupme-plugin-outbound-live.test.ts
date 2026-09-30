@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -23,6 +24,8 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
     HOME: home,
     USERPROFILE: home,
     CODEX_HOME: home,
+    // Pin state to this home even when the test process sets OPENCLAW_STATE_DIR.
+    OPENCLAW_STATE_DIR: join(home, ".openclaw"),
     NO_COLOR: "1",
     OPENCLAW_DISABLE_BONJOUR: "1",
     GROUPME_LIVE_ACCESS_TOKEN: readSecret("GROUPME_LIVE_ACCESS_TOKEN"),
@@ -33,11 +36,35 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
   };
 }
 
+async function waitForGroupMessage(
+  groupId: string,
+  text: string,
+): Promise<{ sender_type?: string; text?: string | null }> {
+  const url = new URL(`https://api.groupme.com/v3/groups/${groupId}/messages`);
+  url.searchParams.set("token", readSecret("GROUPME_LIVE_ACCESS_TOKEN"));
+  url.searchParams.set("limit", "20");
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const response = await fetch(url);
+    if (response.ok) {
+      const body = (await response.json()) as {
+        response: { messages: Array<{ sender_type?: string; text?: string | null }> };
+      };
+      const match = body.response.messages.find((message) => message.text === text);
+      if (match) {
+        return match;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new Error(`message not found in group ${groupId}: ${text}`);
+}
+
 const hasLiveSecrets = requiredSecrets.every((name) => readSecret(name));
 const describeLive = hasLiveSecrets ? describe : describe.skip;
 
 describeLive("GroupMe plugin outbound live smoke", () => {
-  it("sends through an installed OpenClaw channel plugin using env SecretRefs", () => {
+  it("sends through an installed OpenClaw channel plugin using env SecretRefs", async () => {
     const tempHome = createTempProject("openclaw-groupme-plugin-live-");
     try {
       const tarball = packTarball(tempHome);
@@ -49,7 +76,11 @@ describeLive("GroupMe plugin outbound live smoke", () => {
         process.env.GITHUB_SHA?.slice(0, 12) ||
         `local-${Date.now()}`;
 
-      run(process.execPath, [openclawCli, "plugins", "install", tarball, "--force"], { env });
+      run(
+        process.execPath,
+        [openclawCli, "plugins", "install", tarball, "--force", "--accept-capabilities"],
+        { env },
+      );
       run(
         process.execPath,
         [
@@ -58,7 +89,7 @@ describeLive("GroupMe plugin outbound live smoke", () => {
           "add",
           "--channel",
           "groupme",
-          "--token",
+          "--bot-id",
           "placeholder",
           "--account",
           "default",
@@ -112,12 +143,12 @@ describeLive("GroupMe plugin outbound live smoke", () => {
         { env },
       );
 
-      const configOutput = run(
-        process.execPath,
-        [openclawCli, "config", "get", "channels.groupme", "--json"],
-        { env },
-      );
-      const config = JSON.parse(configOutput) as {
+      // `config get` redacts SecretRef ids in OpenClaw 2026.9.x, so read the
+      // file the CLI wrote to confirm the refs (not plaintext) were stored.
+      const written = JSON.parse(
+        readFileSync(join(tempHome, ".openclaw", "openclaw.json"), "utf8"),
+      ) as { channels?: { groupme?: Record<string, unknown> } };
+      const config = (written.channels?.groupme ?? {}) as {
         botId?: unknown;
         accessToken?: unknown;
         groupId?: unknown;
@@ -163,7 +194,12 @@ describeLive("GroupMe plugin outbound live smoke", () => {
           dryRun: false,
         }),
       );
-      expect(send.messageId).toEqual(expect.any(String));
+      // The Bot API returns no message id; the plugin confirms it from the group
+      // feed (accessToken is configured), so OpenClaw records a real identity.
+      expect(send.messageId).toMatch(/^\d+$/);
+      const text = `openclaw-groupme plugin outbound live smoke ${runId}`;
+      const delivered = await waitForGroupMessage(groupId, text);
+      expect(delivered.sender_type).toBe("bot");
     } finally {
       removeTempProject(tempHome);
     }

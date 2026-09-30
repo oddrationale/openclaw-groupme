@@ -2,7 +2,7 @@ import type {
   BlockStreamingCoalesceConfig,
   MarkdownConfig,
   OpenClawConfig,
-} from "openclaw/plugin-sdk/config-runtime";
+} from "openclaw/plugin-sdk/config-contracts";
 import type { SecretInput } from "openclaw/plugin-sdk/secret-ref-runtime";
 
 export type GroupMeAllowFromEntry = string | number;

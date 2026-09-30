@@ -64,6 +64,14 @@ const deleteAccount = method(configAdapter.deleteAccount, "config.deleteAccount"
 const resolveRequireMention = method(groups.resolveRequireMention, "groups.resolveRequireMention");
 const resolveTarget = method(outbound.resolveTarget, "outbound.resolveTarget");
 const chunker = method(outbound.chunker, "outbound.chunker");
+const sanitizeText = method(outbound.sanitizeText, "outbound.sanitizeText");
+const messageAdapter = requirePluginMember("message");
+const security = requirePluginMember("security");
+const agentPrompt = requirePluginMember("agentPrompt");
+const collectWarnings = method(security.collectWarnings, "security.collectWarnings");
+const inspectAccount = method(configAdapter.inspectAccount, "config.inspectAccount");
+const sendTextMessage = method(messageAdapter.send?.text, "message.send.text");
+const sendMediaMessage = method(messageAdapter.send?.media, "message.send.media");
 const sendText = method(outbound.sendText, "outbound.sendText");
 const sendMedia = method(outbound.sendMedia, "outbound.sendMedia");
 const resolveTargets = method(resolver.resolveTargets, "resolver.resolveTargets");
@@ -125,7 +133,7 @@ describe("groupmePlugin.config", () => {
         configured: true,
       }),
     );
-    expect(isConfigured(account(), coreCfg)).toBe(true);
+    expect(isConfigured(account())).toBe(true);
     expect(resolveAllowFrom({ cfg: coreCfg, accountId: "work" })).toEqual(["u2"]);
     expect(resolveRequireMention({ cfg: coreCfg, accountId: "work" })).toBe(false);
   });
@@ -137,7 +145,7 @@ describe("groupmePlugin.config", () => {
   });
 
   it("describes configured accounts without leaking secrets and normalizes webhook paths", () => {
-    const described = describeAccount(account(), cfg({}));
+    const described = describeAccount(account());
 
     expect(described).toEqual({
       accountId: DEFAULT_ACCOUNT_ID,
@@ -166,7 +174,6 @@ describe("groupmePlugin.config", () => {
           },
         },
       }),
-      cfg({}),
     ) as Record<string, unknown>;
 
     expect(described.botId).toBe("***");
@@ -182,7 +189,6 @@ describe("groupmePlugin.config", () => {
         botId: "",
         config: {},
       }),
-      cfg({}),
     ) as Record<string, unknown>;
 
     expect(described.name).toBeUndefined();
@@ -200,7 +206,6 @@ describe("groupmePlugin.config", () => {
           webhookPath: "http://%",
         },
       }),
-      cfg({}),
     ) as Record<string, unknown>;
 
     expect(described.webhookPath).toBe("/http://%");
@@ -273,52 +278,83 @@ describe("groupmePlugin outbound and resolver", () => {
       throw new Error("expected missing target");
     }
     expect(missing.error.message).toMatch(/GroupMe/);
+    expect(resolveTarget({}).ok).toBe(false);
   });
 
-  it("chunks markdown through the OpenClaw runtime", () => {
-    const chunkMarkdownText = vi.fn(() => ["one", "two"]);
-    setGroupMeRuntime({
-      channel: {
-        text: {
-          chunkMarkdownText,
-        },
-      },
-    } as unknown as Parameters<typeof setGroupMeRuntime>[0]);
-
-    expect(chunker("hello", 5)).toEqual(["one", "two"]);
-    expect(chunkMarkdownText).toHaveBeenCalledWith("hello", 5);
+  it("chunks and sanitizes outbound text with the SDK helpers, without a runtime", () => {
+    expect(outbound.textChunkLimit).toBe(1000);
+    expect(outbound.chunkerMode).toBe("markdown");
+    expect(outbound.deliveryMode).toBe("direct");
+    expect(chunker("aaaa bbbb cccc", 5)).toEqual(["aaaa", "bbbb", "cccc"]);
+    expect(sanitizeText({ text: "<think>plan</think>visible", payload: { text: "" } })).toBe(
+      "visible",
+    );
   });
 
-  it("delegates text and media sends to the GroupMe send helpers", async () => {
-    sendGroupMeTextMock.mockResolvedValueOnce({ messageId: "m1", timestamp: 100 });
-    sendGroupMeMediaMock.mockResolvedValueOnce({ messageId: "m2", timestamp: 200 });
+  it("delegates text and media sends and returns receipts without a platform id", async () => {
+    sendGroupMeTextMock.mockResolvedValueOnce({ messageId: "", timestamp: 100 });
+    sendGroupMeMediaMock.mockResolvedValueOnce({ messageId: "", timestamp: 200 });
     const coreCfg = cfg({ botId: "bot-1", accessToken: "token-1" });
+    const onPlatformSendDispatch = vi.fn(async () => undefined);
+    const assertDirectAdapterHandoff = vi.fn();
+    const signal = new AbortController().signal;
+    const mediaReadFile = vi.fn(async () => Buffer.from(""));
 
-    await expect(
-      sendText({
-        cfg: coreCfg,
-        to: "groupme:group:g1",
-        text: "hello",
-        accountId: DEFAULT_ACCOUNT_ID,
-      }),
-    ).resolves.toEqual({ channel: "groupme", messageId: "m1", timestamp: 100 });
+    const textResult = await sendText({
+      cfg: coreCfg,
+      to: "g1",
+      text: "hello",
+      accountId: DEFAULT_ACCOUNT_ID,
+      onPlatformSendDispatch,
+      assertDirectAdapterHandoff,
+      signal,
+    });
+    expect(textResult).toEqual({
+      channel: "groupme",
+      messageId: "",
+      timestamp: 100,
+      target: { kind: "chat", id: "g1" },
+      receipt: expect.objectContaining({ platformMessageIds: [], parts: [], threadId: "g1" }),
+    });
 
-    await expect(
-      sendMedia({
-        cfg: coreCfg,
-        to: "groupme:group:g1",
-        text: "image",
-        mediaUrl: "https://example.com/image.png",
-        accountId: DEFAULT_ACCOUNT_ID,
-      }),
-    ).resolves.toEqual({ channel: "groupme", messageId: "m2", timestamp: 200 });
-
-    expect(sendGroupMeTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "hello", to: "groupme:group:g1" }),
+    const mediaResult = await sendMedia({
+      cfg: coreCfg,
+      to: "g1",
+      text: "image",
+      mediaUrl: "https://example.com/image.png",
+      mediaReadFile,
+      accountId: DEFAULT_ACCOUNT_ID,
+      onPlatformSendDispatch,
+      assertDirectAdapterHandoff,
+      signal,
+    });
+    expect(mediaResult).toEqual(
+      expect.objectContaining({ channel: "groupme", messageId: "", timestamp: 200 }),
     );
-    expect(sendGroupMeMediaMock).toHaveBeenCalledWith(
-      expect.objectContaining({ mediaUrl: "https://example.com/image.png" }),
-    );
+    expect(mediaResult.receipt.platformMessageIds).toEqual([]);
+
+    expect(sendGroupMeTextMock).toHaveBeenCalledWith({
+      cfg: coreCfg,
+      to: "g1",
+      text: "hello",
+      accountId: DEFAULT_ACCOUNT_ID,
+      onPlatformSendDispatch,
+      assertDirectAdapterHandoff,
+      signal,
+      confirmMessageId: true,
+    });
+    expect(sendGroupMeMediaMock).toHaveBeenCalledWith({
+      cfg: coreCfg,
+      to: "g1",
+      text: "image",
+      mediaUrl: "https://example.com/image.png",
+      mediaReadFile,
+      accountId: DEFAULT_ACCOUNT_ID,
+      onPlatformSendDispatch,
+      assertDirectAdapterHandoff,
+      signal,
+      confirmMessageId: true,
+    });
   });
 
   it("rejects media sends without a mediaUrl before calling the API", async () => {
@@ -332,6 +368,26 @@ describe("groupmePlugin outbound and resolver", () => {
       }),
     ).rejects.toThrow("mediaUrl");
     expect(sendGroupMeMediaMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the confirmed GroupMe message id in the receipt", async () => {
+    sendGroupMeTextMock.mockResolvedValueOnce({
+      messageId: "179000000000000001",
+      timestamp: 100,
+    });
+    const result = await sendText({
+      cfg: cfg({ botId: "bot-1", accessToken: "token-1" }),
+      to: "g1",
+      text: "hello",
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    expect(result.messageId).toBe("179000000000000001");
+    expect(result.receipt).toEqual(
+      expect.objectContaining({
+        primaryPlatformMessageId: "179000000000000001",
+        platformMessageIds: ["179000000000000001"],
+      }),
+    );
   });
 
   it("resolves targets and marks user lookups as group-only", async () => {
@@ -378,6 +434,24 @@ describe("groupmePlugin outbound and resolver", () => {
     });
   });
 
+  it("treats a non-positive peer limit as unlimited", async () => {
+    const peers = await listPeers({
+      cfg: cfg({ botId: "bot-1", allowFrom: ["u1", "u2"] }),
+      accountId: DEFAULT_ACCOUNT_ID,
+      limit: 0,
+      runtime: buildRuntimeEnv(),
+    });
+    const negative = await listPeers({
+      cfg: cfg({ botId: "bot-1", allowFrom: ["u1", "u2"] }),
+      accountId: DEFAULT_ACCOUNT_ID,
+      limit: -1,
+      runtime: buildRuntimeEnv(),
+    });
+
+    expect(peers).toHaveLength(2);
+    expect(negative).toHaveLength(2);
+  });
+
   it("lists every configured peer when no query or limit is supplied", async () => {
     const peers = await listPeers({
       cfg: cfg({ botId: "bot-1", allowFrom: ["u1", "u2"] }),
@@ -395,12 +469,8 @@ describe("groupmePlugin outbound and resolver", () => {
     expect(normalizeTarget("groupme:group:g1")).toBe("g1");
     expect(targetResolver.looksLikeId?.("groupme:group:g1")).toBe(true);
     expect(targetResolver.hint).toBe("<group-id>");
-    await expect(
-      self({ cfg: cfg({}), accountId: DEFAULT_ACCOUNT_ID, runtime: buildRuntimeEnv() }),
-    ).resolves.toBeNull();
-    await expect(
-      listGroups({ cfg: cfg({}), accountId: DEFAULT_ACCOUNT_ID, runtime: buildRuntimeEnv() }),
-    ).resolves.toEqual([]);
+    await expect(self()).resolves.toBeNull();
+    await expect(listGroups()).resolves.toEqual([]);
   });
 });
 
@@ -445,6 +515,28 @@ describe("groupmePlugin status and gateway", () => {
         webhookPath: "/groupme/custom",
         running: true,
         mode: "webhook",
+      }),
+    );
+  });
+
+  it("fills missing runtime activity fields with null in account snapshots", () => {
+    const snapshot = buildAccountSnapshot({
+      account: account({ config: {} }),
+      cfg: cfg({}),
+      runtime: { accountId: DEFAULT_ACCOUNT_ID },
+    });
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        botId: "",
+        tokenSource: "none",
+        webhookPath: "/groupme",
+        running: false,
+        lastStartAt: null,
+        lastStopAt: null,
+        lastInboundAt: null,
+        lastOutboundAt: null,
+        lastError: null,
       }),
     );
   });
@@ -548,18 +640,293 @@ describe("groupmePlugin status and gateway", () => {
     expect(unregister).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses to start an unconfigured account", async () => {
+  it("parks an unconfigured account as blocked until the gateway aborts it", async () => {
+    const abortController = new AbortController();
+    const setStatus = vi.fn();
+    const warn = vi.fn();
+    let settled = false;
+
+    const start = startAccount({
+      account: account({ configured: false, botId: "", config: {} }),
+      accountId: DEFAULT_ACCOUNT_ID,
+      cfg: cfg({}),
+      runtime: buildRuntimeEnv(),
+      abortSignal: abortController.signal,
+      getStatus: () => ({ accountId: DEFAULT_ACCOUNT_ID }),
+      setStatus,
+      log: { info: vi.fn(), warn, error: vi.fn() },
+    }).then(() => {
+      settled = true;
+    });
+
+    expect(setStatus).toHaveBeenCalledWith({
+      lifecycle: "blocked",
+      terminalDisconnect: true,
+      lastError: 'GroupMe is not configured for account "default" (missing botId).',
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: false,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[default] GroupMe is not configured (missing botId); webhook not registered",
+    );
+    expect(registerPluginHttpRouteMock).not.toHaveBeenCalled();
+
+    // Resolving early would make the gateway restart the account in a loop.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    abortController.abort();
+    await start;
+    expect(settled).toBe(true);
+    expect(setStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports ready and stopped lifecycle patches around the webhook route", async () => {
+    const unregister = vi.fn();
+    registerPluginHttpRouteMock.mockReturnValueOnce(unregister);
+    const abortController = new AbortController();
+    const setStatus = vi.fn();
+
+    const start = startAccount({
+      account: account(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      cfg: cfg({ botId: "bot-1", groupId: "g1" }),
+      runtime: buildRuntimeEnv(),
+      abortSignal: abortController.signal,
+      getStatus: () => ({ accountId: DEFAULT_ACCOUNT_ID }),
+      setStatus,
+    });
+
+    expect(setStatus).toHaveBeenCalledTimes(1);
+    expect(setStatus).toHaveBeenLastCalledWith({
+      running: true,
+      connected: true,
+      lifecycle: "ready",
+      lastConnectedAt: expect.any(Number),
+      lastError: null,
+      terminalDisconnect: undefined,
+      accountId: DEFAULT_ACCOUNT_ID,
+      mode: "webhook",
+      webhookPath: "/groupme/custom",
+      lastStartAt: expect.any(Number),
+    });
+    expect(unregister).not.toHaveBeenCalled();
+
+    abortController.abort();
+    await start;
+
+    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(setStatus).toHaveBeenLastCalledWith({
+      running: false,
+      connected: false,
+      lifecycle: "stopped",
+      accountId: DEFAULT_ACCOUNT_ID,
+      lastStopAt: expect.any(Number),
+    });
+  });
+
+  it("builds the handler and route log without a gateway logger", async () => {
+    registerPluginHttpRouteMock.mockReturnValueOnce(vi.fn());
+    const abortController = new AbortController();
+    abortController.abort();
+
+    await startAccount({
+      account: account(),
+      accountId: DEFAULT_ACCOUNT_ID,
+      cfg: cfg({ botId: "bot-1", groupId: "g1" }),
+      runtime: buildRuntimeEnv(),
+      abortSignal: abortController.signal,
+      getStatus: () => ({ accountId: DEFAULT_ACCOUNT_ID }),
+      setStatus: vi.fn(),
+    });
+
+    const route = registerPluginHttpRouteMock.mock.calls[0]?.[0] as {
+      handler: unknown;
+      log: (message: string) => void;
+    };
+    expect(route.handler).toBeTypeOf("function");
+    expect(() => route.log("no logger attached")).not.toThrow();
+  });
+
+  it("parks an unconfigured account without a gateway logger", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    const setStatus = vi.fn();
+
+    await startAccount({
+      account: account({ configured: false, botId: "", config: {} }),
+      accountId: DEFAULT_ACCOUNT_ID,
+      cfg: cfg({}),
+      runtime: buildRuntimeEnv(),
+      abortSignal: abortController.signal,
+      getStatus: () => ({ accountId: DEFAULT_ACCOUNT_ID }),
+      setStatus,
+    });
+
+    expect(setStatus).toHaveBeenCalledWith(expect.objectContaining({ lifecycle: "blocked" }));
+  });
+
+  it("starts with an idle default runtime state", () => {
+    expect(status.defaultRuntime).toEqual({
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: false,
+      lastStartAt: null,
+      lastStopAt: null,
+      lastError: null,
+    });
+  });
+});
+
+describe("groupmePlugin message adapter", () => {
+  it("declares durable final delivery for text and media", () => {
+    expect(messageAdapter.id).toBe("groupme");
+    expect(messageAdapter.durableFinal?.capabilities).toEqual({ text: true, media: true });
+    expect(messageAdapter.receive).toBeDefined();
+  });
+
+  it("sends text and media through the GroupMe helpers with empty receipts", async () => {
+    sendGroupMeTextMock.mockResolvedValueOnce({ messageId: "", timestamp: 10 });
+    sendGroupMeMediaMock.mockResolvedValueOnce({ messageId: "", timestamp: 20 });
+    const coreCfg = cfg({ botId: "bot-1", accessToken: "token-1" });
+
+    const text = await sendTextMessage({
+      cfg: coreCfg,
+      to: "g1",
+      text: "hi",
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    const media = await sendMediaMessage({
+      cfg: coreCfg,
+      to: "g1",
+      text: "",
+      mediaUrl: "https://example.com/a.png",
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+
+    expect(text).toEqual(
+      expect.objectContaining({ messageId: "", timestamp: 10, target: { kind: "chat", id: "g1" } }),
+    );
+    expect(text.receipt).toEqual(
+      expect.objectContaining({ platformMessageIds: [], parts: [], threadId: "g1" }),
+    );
+    expect(media).toEqual(expect.objectContaining({ messageId: "", timestamp: 20 }));
+    expect(sendGroupMeMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "g1", mediaUrl: "https://example.com/a.png" }),
+    );
+  });
+
+  it("rejects media sends without a mediaUrl", async () => {
     await expect(
-      startAccount({
-        account: account({ configured: false, botId: "", config: {} }),
+      sendMediaMessage({
+        cfg: cfg({ botId: "bot-1", accessToken: "token-1" }),
+        to: "g1",
+        text: "",
+        mediaUrl: "  ",
         accountId: DEFAULT_ACCOUNT_ID,
-        cfg: cfg({}),
-        runtime: buildRuntimeEnv(),
-        abortSignal: new AbortController().signal,
-        getStatus: () => ({ accountId: DEFAULT_ACCOUNT_ID }),
-        setStatus: vi.fn(),
-        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       }),
-    ).rejects.toThrow(/not configured/);
+    ).rejects.toThrow("GroupMe media send requires a mediaUrl");
+    expect(sendGroupMeMediaMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("groupmePlugin messaging, prompt, and security surfaces", () => {
+  it("infers group chats for GroupMe targets and exposes the target prefix", () => {
+    expect(messaging.targetPrefixes).toEqual(["groupme"]);
+    const infer = method(messaging.inferTargetChatType, "messaging.inferTargetChatType");
+    expect(infer({ to: "groupme:group:123" })).toBe("group");
+    expect(infer({ to: "12345" })).toBe("group");
+    expect(infer({ to: "" })).toBeUndefined();
+  });
+
+  it("tells the agent GroupMe renders plain text only", () => {
+    const hints = method(agentPrompt.inboundFormattingHints, "agentPrompt.inboundFormattingHints");
+    const result = hints();
+    expect(result?.text_markup).toBe("plain");
+    expect(result?.rules.join("\n")).toContain("under 1000 characters");
+  });
+
+  it("collects no warnings for a fully secured account", () => {
+    expect(
+      collectWarnings({
+        cfg: cfg({}),
+        accountId: DEFAULT_ACCOUNT_ID,
+        account: account({ config: { ...account().config, groupId: "g1" } }),
+      }),
+    ).toEqual([]);
+  });
+
+  it("warns about missing callback token, group id, access token, and open commands", () => {
+    const warnings = collectWarnings({
+      cfg: cfg({}),
+      accountId: DEFAULT_ACCOUNT_ID,
+      account: account({
+        accessToken: "",
+        config: {
+          botId: "bot-1",
+          security: { commandBypass: { requireAllowFrom: false } },
+        },
+      }),
+    });
+
+    expect(warnings).toHaveLength(4);
+    expect(warnings[0]).toMatch(/callbackToken is not configured/);
+    expect(warnings[1]).toMatch(/groupId is not configured/);
+    expect(warnings[2]).toMatch(/accessToken is not configured/);
+    expect(warnings[3]).toMatch(/requireAllowFrom=false/);
+  });
+
+  it("inspects account credentials without exposing their values", () => {
+    const inspected = inspectAccount(
+      cfg({
+        botId: "bot-1",
+        accessToken: { source: "env", provider: "default", id: "GROUPME_ACCESS_TOKEN" },
+      }),
+      DEFAULT_ACCOUNT_ID,
+    );
+    expect(inspected).toEqual(
+      expect.objectContaining({
+        accountId: DEFAULT_ACCOUNT_ID,
+        enabled: true,
+        configured: true,
+        botIdStatus: "available",
+        accessTokenStatus: "available",
+        callbackTokenStatus: "missing",
+      }),
+    );
+
+    expect(
+      inspectAccount(cfg({ botId: "bot-1", callbackToken: "cb" }), DEFAULT_ACCOUNT_ID),
+    ).toEqual(expect.objectContaining({ callbackTokenStatus: "available" }));
+
+    expect(inspectAccount(cfg({}), DEFAULT_ACCOUNT_ID)).toEqual(
+      expect.objectContaining({
+        configured: false,
+        botIdStatus: "missing",
+        accessTokenStatus: "missing",
+      }),
+    );
+  });
+
+  // Core's security audit passes the `config.inspectAccount` result as `account`
+  // to `security.collectWarnings` (audit-channel: resolvedAccount =
+  // inspectAccount(cfg, id)), so the inspect result must carry the account fields.
+  it("produces warnings from the account core's audit inspects", () => {
+    const coreCfg = cfg({ botId: "bot-1", groupId: "g1" });
+    // Core hands the inspect result over untyped; mirror that here.
+    const inspected = inspectAccount(
+      coreCfg,
+      DEFAULT_ACCOUNT_ID,
+    ) as unknown as ResolvedGroupMeAccount;
+
+    const warnings = collectWarnings({
+      cfg: coreCfg,
+      accountId: DEFAULT_ACCOUNT_ID,
+      account: inspected,
+    });
+
+    expect(warnings).toEqual([
+      expect.stringMatching(/callbackToken is not configured/),
+      expect.stringMatching(/accessToken is not configured/),
+    ]);
   });
 });

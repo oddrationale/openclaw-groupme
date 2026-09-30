@@ -1,14 +1,12 @@
-import type { PluginRuntime } from "openclaw/plugin-sdk/core";
+import { createPluginRuntimeStore, type PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
 
-let runtime: PluginRuntime | null = null;
+const {
+  setRuntime: setGroupMeRuntime,
+  getRuntime: getGroupMeRuntime,
+  tryGetRuntime: tryGetGroupMeRuntime,
+} = createPluginRuntimeStore<PluginRuntime>({
+  pluginId: "groupme",
+  errorMessage: "GroupMe runtime not initialized - plugin not registered",
+});
 
-export function setGroupMeRuntime(next: PluginRuntime) {
-  runtime = next;
-}
-
-export function getGroupMeRuntime(): PluginRuntime {
-  if (!runtime) {
-    throw new Error("GroupMe runtime not initialized");
-  }
-  return runtime;
-}
+export { getGroupMeRuntime, setGroupMeRuntime, tryGetGroupMeRuntime };

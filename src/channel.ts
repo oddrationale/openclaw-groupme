@@ -1,246 +1,163 @@
+import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
+import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import { missingTargetError } from "openclaw/plugin-sdk/channel-feedback";
 import {
-  applyAccountNameToChannelSection,
-  buildChannelConfigSchema,
-  type ChannelPlugin,
-  DEFAULT_ACCOUNT_ID,
-  deleteAccountFromConfigSection,
-  migrateBaseNameToDefaultAccount,
-  normalizeAccountId,
-  setAccountEnabledInConfigSection,
-} from "openclaw/plugin-sdk/core";
-import type { ChannelSetupAdapter } from "openclaw/plugin-sdk/setup";
-import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
+  type ChannelMessageSendMediaContext,
+  type ChannelMessageSendTextContext,
+  createMessageReceiptFromOutboundResults,
+  defineChannelMessageAdapter,
+  type MessageReceipt,
+  type MessageReceiptPartKind,
+  waitUntilAbort,
+} from "openclaw/plugin-sdk/channel-outbound";
 import {
-  hasSecretInput,
-  listGroupMeAccountIds,
-  resolveDefaultGroupMeAccountId,
-  resolveGroupMeAccount,
-} from "./accounts.js";
-import { GroupMeConfigSchema } from "./config-schema.js";
+  channelBlockedPatch,
+  channelReadyPatch,
+  channelStoppedPatch,
+} from "openclaw/plugin-sdk/gateway-runtime";
+import { createDefaultChannelRuntimeState } from "openclaw/plugin-sdk/status-helpers";
+import {
+  chunkTextForOutbound,
+  sanitizeAssistantVisibleText,
+} from "openclaw/plugin-sdk/text-chunking";
+import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
+import { hasSecretInput, resolveGroupMeAccount } from "./accounts.js";
+import { CHANNEL_ID, groupmeSetupPlugin } from "./channel.setup.js";
 import { createGroupMeWebhookHandler } from "./monitor.js";
 import {
   looksLikeGroupMeTargetId,
   normalizeGroupMeAllowEntry,
   normalizeGroupMeTarget,
 } from "./normalize.js";
-import { groupmeOnboardingAdapter } from "./onboarding.js";
-import { getGroupMeRuntime } from "./runtime.js";
+import { resolveGroupMeSecurity } from "./security.js";
 import { GROUPME_MAX_TEXT_LENGTH, sendGroupMeMedia, sendGroupMeText } from "./send.js";
-import type { CoreConfig, GroupMeConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
+import type { CoreConfig, GroupMeProbe, ResolvedGroupMeAccount } from "./types.js";
+import { DEFAULT_GROUPME_WEBHOOK_PATH, normalizeWebhookPath } from "./webhook-path.js";
 
-const CHANNEL_ID = "groupme" as const;
-
-function normalizeWebhookPath(raw: string | undefined): string {
-  const trimmed = raw?.trim() ?? "";
-  if (!trimmed) {
-    return "/groupme";
-  }
-  try {
-    const parsed = new URL(trimmed, "http://localhost");
-    return parsed.pathname || "/groupme";
-  } catch {
-    // Unparseable input (e.g. "http://%"): strip any query/fragment and ensure a
-    // leading slash so we still return a route-shaped path rather than throwing.
-    // This is a display/registration fallback for malformed config, not a parser.
-    // The `?? trimmed` and empty-`noQuery` guards are defensive: split() always yields
-    // a [0], and a non-empty trimmed string can't reduce to an empty noQuery here.
-    /* v8 ignore start */
-    const noQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
-    if (!noQuery) {
-      return "/groupme";
-    }
-    /* v8 ignore stop */
-    return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
-  }
-}
-
-function parseWebhookSetupInput(raw: string): {
-  webhookPath: string;
-  callbackToken?: string;
-} {
-  try {
-    const parsed = new URL(raw.trim(), "http://localhost");
-    const callbackToken = parsed.searchParams.get("k")?.trim() || undefined;
-    return {
-      webhookPath: parsed.pathname || "/groupme",
-      callbackToken,
-    };
-  } catch {
-    return {
-      webhookPath: normalizeWebhookPath(raw),
-    };
-  }
-}
-
-const meta = {
-  id: CHANNEL_ID,
-  label: "GroupMe",
-  selectionLabel: "GroupMe (Bot API)",
-  docsPath: "/channels/groupme",
-  docsLabel: "groupme",
-  blurb: "GroupMe bot webhook integration (group chats only).",
-  aliases: ["gm"],
-  order: 95,
-  quickstartAllowFrom: true,
+type GroupMeSendResult = {
+  channel: typeof CHANNEL_ID;
+  messageId: string;
+  timestamp: number;
+  target: { kind: "chat"; id: string };
+  receipt: MessageReceipt;
 };
 
-export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> = {
-  id: CHANNEL_ID,
-  meta,
-  setupWizard: groupmeOnboardingAdapter,
-  setup: {
-    resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
+type GroupMeTextContext = Omit<ChannelMessageSendTextContext, "onDeliveryResult">;
+type GroupMeMediaContext = Omit<ChannelMessageSendMediaContext, "onDeliveryResult">;
 
-    applyAccountName: ({ cfg, accountId, name }) =>
-      applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "groupme",
-        accountId,
-        name,
-      }),
-
-    validateInput: ({ input }) => {
-      if (!input.token?.trim()) {
-        return "GroupMe Bot ID is required (--token <bot-id>)";
-      }
-      return null;
-    },
-
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      let next = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "groupme",
-        accountId,
-        name: input.name,
-      });
-
-      if (accountId !== DEFAULT_ACCOUNT_ID) {
-        next = migrateBaseNameToDefaultAccount({
-          cfg: next,
-          channelKey: "groupme",
-        });
-      }
-
-      const updates: Record<string, unknown> = { enabled: true };
-      if (input.token?.trim()) updates.botId = input.token.trim();
-      if (input.accessToken?.trim()) updates.accessToken = input.accessToken.trim();
-      if (input.webhookUrl?.trim()) {
-        const parsed = parseWebhookSetupInput(input.webhookUrl);
-        updates.webhookPath = parsed.webhookPath;
-        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
-      } else if (input.webhookPath?.trim()) {
-        const parsed = parseWebhookSetupInput(input.webhookPath);
-        updates.webhookPath = parsed.webhookPath;
-        if (parsed.callbackToken) updates.callbackToken = parsed.callbackToken;
-      }
-
-      const section = (next.channels?.groupme ?? {}) as GroupMeConfig;
-
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            groupme: {
-              ...section,
-              ...updates,
-            },
-          },
-        };
-      }
-
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          groupme: {
-            ...section,
-            enabled: true,
-            accounts: {
-              ...(section.accounts ?? {}),
-              [accountId]: {
-                ...(section.accounts?.[accountId] ?? {}),
-                ...updates,
-              },
-            },
-          },
-        },
-      };
-    },
-
-    resolveBindingAccountId: ({ cfg, accountId }) => {
-      if (accountId) return accountId;
-      const ids = listGroupMeAccountIds(cfg as CoreConfig);
-      if (ids.length <= 1) return DEFAULT_ACCOUNT_ID;
-      const section = (cfg as CoreConfig).channels?.groupme;
-      const explicitDefault = section?.defaultAccount?.trim();
-      return explicitDefault ? resolveDefaultGroupMeAccountId(cfg as CoreConfig) : undefined;
-    },
-  } satisfies ChannelSetupAdapter,
-  capabilities: {
-    chatTypes: ["group"],
-    media: true,
-    blockStreaming: true,
-  },
-  reload: { configPrefixes: ["channels.groupme"] },
-  configSchema: buildChannelConfigSchema(GroupMeConfigSchema),
-  config: {
-    listAccountIds: (cfg) => listGroupMeAccountIds(cfg as CoreConfig),
-    resolveAccount: (cfg, accountId) =>
-      resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
-    defaultAccountId: (cfg) => resolveDefaultGroupMeAccountId(cfg as CoreConfig),
-    setAccountEnabled: ({ cfg, accountId, enabled }) =>
-      setAccountEnabledInConfigSection({
-        cfg: cfg as CoreConfig,
-        sectionKey: CHANNEL_ID,
-        accountId,
-        enabled,
-        allowTopLevel: true,
-      }),
-    deleteAccount: ({ cfg, accountId }) =>
-      deleteAccountFromConfigSection({
-        cfg: cfg as CoreConfig,
-        sectionKey: CHANNEL_ID,
-        accountId,
-        clearBaseFields: [
-          "name",
-          "botId",
-          "accessToken",
-          "callbackToken",
-          "botName",
-          "groupId",
-          "publicDomain",
-          "webhookPath",
-          "mentionPatterns",
-          "requireMention",
-          "historyLimit",
-          "allowFrom",
-          "textChunkLimit",
-          "responsePrefix",
-          "security",
-        ],
-      }),
-    isConfigured: (account) => account.configured,
-    describeAccount: (account) => ({
-      accountId: account.accountId,
-      name: account.name,
-      enabled: account.enabled,
-      configured: account.configured,
-      botId: hasSecretInput(account.config.botId) ? "***" : "",
-      publicDomain: account.config.publicDomain ?? "",
-      webhookPath: normalizeWebhookPath(account.config.webhookPath),
-      callbackToken: hasSecretInput(account.config.callbackToken) ? "***" : "",
+function createGroupMeSendResult(params: {
+  groupId: string;
+  kind: MessageReceiptPartKind;
+  messageId: string;
+  timestamp: number;
+}): GroupMeSendResult {
+  return {
+    channel: CHANNEL_ID,
+    // The Bot API returns 202 with no body; the id is confirmed from the group
+    // feed when an access token is configured. Without one the receipt stays
+    // empty (an unconfirmed send) so a group id or random value never
+    // masquerades as a platform message id.
+    messageId: params.messageId,
+    timestamp: params.timestamp,
+    target: { kind: "chat", id: params.groupId },
+    receipt: createMessageReceiptFromOutboundResults({
+      results: params.messageId
+        ? [{ messageId: params.messageId, timestamp: params.timestamp }]
+        : [],
+      threadId: params.groupId,
+      kind: params.kind,
     }),
-    resolveAllowFrom: ({ cfg, accountId }) =>
-      (resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }).config.allowFrom ?? []).map(
-        (entry) => String(entry),
-      ),
-    formatAllowFrom: ({ allowFrom }) =>
-      allowFrom
-        .map((entry) => normalizeGroupMeAllowEntry(String(entry)))
-        .filter((entry): entry is string => Boolean(entry)),
+  };
+}
+
+async function sendGroupMeTextMessage(ctx: GroupMeTextContext): Promise<GroupMeSendResult> {
+  const result = await sendGroupMeText({
+    cfg: ctx.cfg as CoreConfig,
+    to: ctx.to,
+    text: ctx.text,
+    accountId: ctx.accountId,
+    onPlatformSendDispatch: ctx.onPlatformSendDispatch,
+    assertDirectAdapterHandoff: ctx.assertDirectAdapterHandoff,
+    signal: ctx.signal,
+    confirmMessageId: true,
+  });
+  return createGroupMeSendResult({
+    groupId: ctx.to,
+    kind: "text",
+    messageId: result.messageId,
+    timestamp: result.timestamp,
+  });
+}
+
+async function sendGroupMeMediaMessage(ctx: GroupMeMediaContext): Promise<GroupMeSendResult> {
+  if (!ctx.mediaUrl?.trim()) {
+    throw new Error("GroupMe media send requires a mediaUrl");
+  }
+  const result = await sendGroupMeMedia({
+    cfg: ctx.cfg as CoreConfig,
+    to: ctx.to,
+    text: ctx.text,
+    mediaUrl: ctx.mediaUrl,
+    mediaReadFile: ctx.mediaReadFile,
+    accountId: ctx.accountId,
+    onPlatformSendDispatch: ctx.onPlatformSendDispatch,
+    assertDirectAdapterHandoff: ctx.assertDirectAdapterHandoff,
+    signal: ctx.signal,
+    confirmMessageId: true,
+  });
+  return createGroupMeSendResult({
+    groupId: ctx.to,
+    kind: "media",
+    messageId: result.messageId,
+    timestamp: result.timestamp,
+  });
+}
+
+const groupmeMessageAdapter = defineChannelMessageAdapter({
+  id: CHANNEL_ID,
+  durableFinal: {
+    capabilities: {
+      text: true,
+      media: true,
+    },
   },
+  send: {
+    text: sendGroupMeTextMessage,
+    media: sendGroupMeMediaMessage,
+  },
+});
+
+function collectGroupMeWarnings(account: ResolvedGroupMeAccount): string[] {
+  const warnings: string[] = [];
+  // Audits may pass an unresolved account, so check secret inputs (which can be
+  // SecretRefs) rather than resolved string values.
+  const config = account.config ?? {};
+  const security = resolveGroupMeSecurity(config);
+  if (!hasSecretInput(config.callbackToken)) {
+    warnings.push(
+      "- GroupMe: callbackToken is not configured. Inbound callbacks are not token-authenticated; anyone who learns the webhook path and group_id can post. Set callbackToken and append ?k=<token> to the bot callback URL.",
+    );
+  }
+  if (!security.groupId) {
+    warnings.push(
+      "- GroupMe: groupId is not configured. Every inbound callback is rejected until groupId is set.",
+    );
+  }
+  if (!hasSecretInput(config.accessToken)) {
+    warnings.push(
+      "- GroupMe: accessToken is not configured. Text replies are sent but cannot be confirmed (no message id), and image replies cannot be uploaded.",
+    );
+  }
+  if (!security.commandBypass.requireAllowFrom) {
+    warnings.push(
+      "- GroupMe: security.commandBypass.requireAllowFrom=false lets any group member run control commands.",
+    );
+  }
+  return warnings;
+}
+
+export const groupmePlugin = {
+  ...groupmeSetupPlugin,
   groups: {
     resolveRequireMention: ({ cfg, accountId }) => {
       const account = resolveGroupMeAccount({
@@ -250,11 +167,26 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
       return account.config.requireMention ?? true;
     },
   },
+  agentPrompt: {
+    inboundFormattingHints: () => ({
+      text_markup: "plain",
+      rules: [
+        "GroupMe renders plain text only: Markdown such as **bold**, headings, tables, and code fences shows up literally.",
+        `Keep each message under ${GROUPME_MAX_TEXT_LENGTH} characters; longer replies are split into several messages.`,
+        "Paste links as bare URLs. Images can be attached as media; other file types cannot.",
+      ],
+    }),
+  },
+  security: {
+    collectWarnings: ({ account }) => collectGroupMeWarnings(account),
+  },
+  message: groupmeMessageAdapter,
   outbound: {
     deliveryMode: "direct",
-    chunker: (text, limit) => getGroupMeRuntime().channel.text.chunkMarkdownText(text, limit),
+    chunker: chunkTextForOutbound,
     chunkerMode: "markdown",
     textChunkLimit: GROUPME_MAX_TEXT_LENGTH,
+    sanitizeText: ({ text }) => sanitizeAssistantVisibleText(text),
     resolveTarget: ({ to }) => {
       const normalized = normalizeGroupMeTarget(to?.trim() ?? "");
       if (!normalized) {
@@ -269,40 +201,18 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
         to: normalized,
       };
     },
-    sendText: async ({ cfg, to, text, accountId }) => {
-      const result = await sendGroupMeText({
-        cfg: cfg as CoreConfig,
-        to,
-        text,
-        accountId,
-      });
-      return {
-        channel: CHANNEL_ID,
-        messageId: result.messageId,
-        timestamp: result.timestamp,
-      };
-    },
-    sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
-      if (!mediaUrl?.trim()) {
+    sendText: sendGroupMeTextMessage,
+    sendMedia: async (ctx) => {
+      if (!ctx.mediaUrl?.trim()) {
         throw new Error("GroupMe media send requires a mediaUrl");
       }
-
-      const result = await sendGroupMeMedia({
-        cfg: cfg as CoreConfig,
-        to,
-        text,
-        mediaUrl,
-        accountId,
-      });
-      return {
-        channel: CHANNEL_ID,
-        messageId: result.messageId,
-        timestamp: result.timestamp,
-      };
+      return await sendGroupMeMediaMessage({ ...ctx, mediaUrl: ctx.mediaUrl });
     },
   },
   messaging: {
+    targetPrefixes: ["groupme"],
     normalizeTarget: normalizeGroupMeTarget,
+    inferTargetChatType: ({ to }) => (looksLikeGroupMeTargetId(to) ? "group" : undefined),
     targetResolver: {
       looksLikeId: (raw) => looksLikeGroupMeTargetId(raw),
       hint: "<group-id>",
@@ -348,13 +258,7 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
     listGroups: async () => [],
   },
   status: {
-    defaultRuntime: {
-      accountId: DEFAULT_ACCOUNT_ID,
-      running: false,
-      lastStartAt: null,
-      lastStopAt: null,
-      lastError: null,
-    },
+    defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID),
     buildChannelSummary: ({ snapshot }) => ({
       configured: snapshot.configured ?? false,
       running: snapshot.running ?? false,
@@ -386,15 +290,24 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
     startAccount: async (ctx) => {
       const account = ctx.account;
       if (!account.configured) {
-        throw new Error(
-          `GroupMe is not configured for account "${account.accountId}" (missing botId).`,
+        // Stay parked until stopped: resolving (or throwing) here would make the
+        // gateway restart the account in a loop without a usable bot id.
+        ctx.log?.warn?.(
+          `[${account.accountId}] GroupMe is not configured (missing botId); webhook not registered`,
         );
+        ctx.setStatus(
+          channelBlockedPatch(
+            `GroupMe is not configured for account "${account.accountId}" (missing botId).`,
+            { accountId: account.accountId, running: false },
+          ),
+        );
+        return waitUntilAbort(ctx.abortSignal);
       }
 
       const callbackPath = normalizeWebhookPath(account.config.webhookPath);
       const unregister = registerPluginHttpRoute({
         path: callbackPath,
-        fallbackPath: "/groupme",
+        fallbackPath: DEFAULT_GROUPME_WEBHOOK_PATH,
         handler: createGroupMeWebhookHandler({
           account,
           config: ctx.cfg as CoreConfig,
@@ -410,42 +323,26 @@ export const groupmePlugin: ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe> 
         log: (message) => ctx.log?.info(message),
       });
 
-      ctx.setStatus({
-        accountId: account.accountId,
-        running: true,
-        mode: "webhook",
-        webhookPath: callbackPath,
-        lastStartAt: Date.now(),
-        lastError: null,
-      });
-
+      ctx.setStatus(
+        channelReadyPatch({
+          accountId: account.accountId,
+          mode: "webhook",
+          webhookPath: callbackPath,
+          lastStartAt: Date.now(),
+        }),
+      );
       ctx.log?.info(`[${account.accountId}] GroupMe webhook listening on ${callbackPath}`);
 
-      const markStopped = () => {
-        ctx.setStatus({
-          accountId: account.accountId,
-          running: false,
-          lastStopAt: Date.now(),
-        });
-      };
-
-      if (ctx.abortSignal.aborted) {
+      // Resolving before abort would make the gateway restart this account.
+      return waitUntilAbort(ctx.abortSignal, () => {
         unregister();
-        markStopped();
-        return;
-      }
-
-      await new Promise<void>((resolve) => {
-        ctx.abortSignal.addEventListener(
-          "abort",
-          () => {
-            unregister();
-            markStopped();
-            resolve();
-          },
-          { once: true },
+        ctx.setStatus(
+          channelStoppedPatch({
+            accountId: account.accountId,
+            lastStopAt: Date.now(),
+          }),
         );
       });
     },
   },
-};
+} satisfies ChannelPlugin<ResolvedGroupMeAccount, GroupMeProbe>;
