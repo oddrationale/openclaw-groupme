@@ -33,11 +33,35 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
   };
 }
 
+async function waitForGroupMessage(
+  groupId: string,
+  text: string,
+): Promise<{ sender_type?: string; text?: string | null }> {
+  const url = new URL(`https://api.groupme.com/v3/groups/${groupId}/messages`);
+  url.searchParams.set("token", readSecret("GROUPME_LIVE_ACCESS_TOKEN"));
+  url.searchParams.set("limit", "20");
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const response = await fetch(url);
+    if (response.ok) {
+      const body = (await response.json()) as {
+        response: { messages: Array<{ sender_type?: string; text?: string | null }> };
+      };
+      const match = body.response.messages.find((message) => message.text === text);
+      if (match) {
+        return match;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new Error(`message not found in group ${groupId}: ${text}`);
+}
+
 const hasLiveSecrets = requiredSecrets.every((name) => readSecret(name));
 const describeLive = hasLiveSecrets ? describe : describe.skip;
 
 describeLive("GroupMe plugin outbound live smoke", () => {
-  it("sends through an installed OpenClaw channel plugin using env SecretRefs", () => {
+  it("sends through an installed OpenClaw channel plugin using env SecretRefs", async () => {
     const tempHome = createTempProject("openclaw-groupme-plugin-live-");
     try {
       const tarball = packTarball(tempHome);
@@ -49,7 +73,11 @@ describeLive("GroupMe plugin outbound live smoke", () => {
         process.env.GITHUB_SHA?.slice(0, 12) ||
         `local-${Date.now()}`;
 
-      run(process.execPath, [openclawCli, "plugins", "install", tarball, "--force"], { env });
+      run(
+        process.execPath,
+        [openclawCli, "plugins", "install", tarball, "--force", "--accept-capabilities"],
+        { env },
+      );
       run(
         process.execPath,
         [
@@ -58,7 +86,7 @@ describeLive("GroupMe plugin outbound live smoke", () => {
           "add",
           "--channel",
           "groupme",
-          "--token",
+          "--bot-id",
           "placeholder",
           "--account",
           "default",
@@ -163,7 +191,10 @@ describeLive("GroupMe plugin outbound live smoke", () => {
           dryRun: false,
         }),
       );
-      expect(send.messageId).toEqual(expect.any(String));
+      // The Bot API returns no message id, so confirm delivery from the group feed.
+      const text = `openclaw-groupme plugin outbound live smoke ${runId}`;
+      const delivered = await waitForGroupMessage(groupId, text);
+      expect(delivered.sender_type).toBe("bot");
     } finally {
       removeTempProject(tempHome);
     }

@@ -2,11 +2,10 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "index.ts",
-    "channel-plugin-api.ts",
-    "runtime-setter-api.ts",
+
     "secret-contract-api.ts",
     "setup-entry.ts",
-    "setup-plugin-api.ts",
+
     "tests/**/*.test.ts"
   ],
   "project": ["**/*.ts"],

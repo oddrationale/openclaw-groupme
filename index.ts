@@ -1,22 +1,11 @@
-import { defineBundledChannelEntry } from "openclaw/plugin-sdk/channel-entry-contract";
+import { defineChannelPluginEntry } from "openclaw/plugin-sdk/channel-core";
+import { groupmePlugin } from "./src/channel.js";
+import { setGroupMeRuntime } from "./src/runtime.js";
 
-const plugin = defineBundledChannelEntry({
+export default defineChannelPluginEntry({
   id: "groupme",
   name: "GroupMe",
   description: "GroupMe channel plugin",
-  importMetaUrl: import.meta.url,
-  plugin: {
-    specifier: "./channel-plugin-api.js",
-    exportName: "groupmePlugin",
-  },
-  secrets: {
-    specifier: "./secret-contract-api.js",
-    exportName: "channelSecrets",
-  },
-  runtime: {
-    specifier: "./runtime-setter-api.js",
-    exportName: "setGroupMeRuntime",
-  },
+  plugin: groupmePlugin,
+  setRuntime: setGroupMeRuntime,
 });
-
-export default plugin;

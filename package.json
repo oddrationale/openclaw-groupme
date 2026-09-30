@@ -20,37 +20,38 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.16.0 <25 || >=26.1.0"
   },
   "files": [
     "openclaw.plugin.json",
     "dist/**/*.js",
     "index.ts",
-    "channel-plugin-api.ts",
-    "runtime-setter-api.ts",
     "secret-contract-api.ts",
     "setup-entry.ts",
-    "setup-plugin-api.ts",
     "src/**/*.ts",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run build && npm run knip",
+    "check": "npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run build && npm run manifest:check && npm run knip",
     "commitlint": "commitlint --edit",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "knip": "knip",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "manifest:check": "node scripts/sync-manifest.mjs --check",
+    "manifest:sync": "npm run build && node scripts/sync-manifest.mjs && biome format --write openclaw.plugin.json",
     "prepack": "npm run build",
     "prepare": "lefthook install",
     "test": "npm run test:unit",
     "test:coverage": "vitest run tests/unit tests/integration --coverage --no-file-parallelism",
+    "test:e2e": "vitest run tests/e2e --no-file-parallelism",
     "test:integration": "vitest run tests/integration --no-file-parallelism",
     "test:live": "vitest run tests/live",
     "test:live:api": "vitest run tests/live/groupme-api-live.test.ts",
+    "test:live:gateway": "vitest run tests/live/groupme-gateway-live.test.ts",
     "test:live:plugin-outbound": "vitest run tests/live/groupme-plugin-outbound-live.test.ts",
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest tests/unit tests/integration",
@@ -72,7 +73,7 @@
     "vitest": "^5.0.3"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.6.1"
+    "openclaw": ">=2026.9.7"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -85,26 +86,107 @@
     ],
     "setupEntry": "./dist/setup-entry.js",
     "compat": {
-      "pluginApi": ">=2026.6.1"
+      "pluginApi": ">=2026.9.7"
     },
     "build": {
-      "openclawVersion": "2026.6.1"
+      "openclawVersion": "2026.9.7"
     },
     "channel": {
       "id": "groupme",
       "label": "GroupMe",
       "selectionLabel": "GroupMe (Bot API)",
+      "detailLabel": "GroupMe Bot",
+      "docsPath": "/channels/groupme",
+      "docsLabel": "groupme",
       "blurb": "GroupMe bot webhook integration (group chats only).",
+      "order": 95,
+      "aliases": [
+        "gm"
+      ],
+      "quickstartAllowFrom": true,
       "doctorCapabilities": {
         "groupModel": "sender",
         "groupAllowFromFallbackToAllowFrom": false
+      },
+      "setup": {
+        "fields": [
+          {
+            "key": "botId",
+            "kind": "string",
+            "sensitive": true,
+            "cli": {
+              "flags": "--bot-id <id>",
+              "description": "GroupMe bot ID"
+            }
+          },
+          {
+            "key": "token",
+            "kind": "string",
+            "sensitive": true,
+            "cli": {
+              "flags": "--token <bot-id>",
+              "description": "GroupMe bot ID (alias for --bot-id)"
+            }
+          },
+          {
+            "key": "accessToken",
+            "kind": "string",
+            "sensitive": true,
+            "cli": {
+              "flags": "--access-token <token>",
+              "description": "GroupMe access token (required for image replies)"
+            }
+          },
+          {
+            "key": "callbackToken",
+            "kind": "string",
+            "sensitive": true,
+            "cli": {
+              "flags": "--callback-token <token>",
+              "description": "Shared secret GroupMe sends as ?k= on the callback URL"
+            }
+          },
+          {
+            "key": "groupId",
+            "kind": "string",
+            "cli": {
+              "flags": "--group-id <id>",
+              "description": "GroupMe group ID the bot belongs to"
+            }
+          },
+          {
+            "key": "botName",
+            "kind": "string",
+            "cli": {
+              "flags": "--bot-name <name>",
+              "description": "Bot display name used for mentions"
+            }
+          },
+          {
+            "key": "webhookPath",
+            "kind": "string",
+            "cli": {
+              "flags": "--webhook-path <path>",
+              "description": "Gateway path for GroupMe callbacks"
+            }
+          },
+          {
+            "key": "webhookUrl",
+            "kind": "string",
+            "sensitive": true,
+            "cli": {
+              "flags": "--webhook-url <url>",
+              "description": "Full callback URL; sets the webhook path and ?k= callback token"
+            }
+          }
+        ]
       }
     },
-    "startup": {
-      "deferConfiguredChannelFullLoadUntilAfterListen": true
-    },
     "install": {
-      "npmSpec": "openclaw-groupme"
+      "npmSpec": "openclaw-groupme",
+      "clawhubSpec": "clawhub:openclaw-groupme",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.9.7"
     }
   }
 }

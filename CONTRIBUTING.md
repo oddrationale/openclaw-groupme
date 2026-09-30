@@ -4,7 +4,7 @@ Thanks for helping improve `openclaw-groupme`.
 
 ## Setup
 
-Use Node.js 22.19.0 or newer. The CI matrix currently checks Node 22 and 24.
+Use Node.js 24.16.0 or newer on 24.x, or 26.1.0 or newer (OpenClaw 2026.9.7 requires it). The CI matrix checks Node 24 and 26.
 
 ```bash
 npm ci
@@ -27,7 +27,10 @@ That runs:
 - `npm run test:unit`
 - `npm run test:integration`
 - `npm run build`
+- `npm run manifest:check`
 - `npm run knip`
+
+CI also runs the gateway end-to-end suite (`npm run test:e2e`), which installs the packed plugin into a real OpenClaw gateway with a stub model and a fake GroupMe API.
 
 Useful focused commands:
 
@@ -40,7 +43,9 @@ npm test
 npm run test:unit
 npm run test:integration
 npm run test:coverage
+npm run test:e2e
 npm run test:live
+npm run manifest:sync
 npm run test:watch
 npm run build
 npx vitest run tests/unit/parse.test.ts
@@ -57,7 +62,7 @@ All imports use `.js` extensions because the package uses Node16 module resoluti
 
 ## Configuration And Secrets
 
-Assume OpenClaw `v2026.6.1` or newer. The plugin config should stay explicit and modern:
+Assume OpenClaw `v2026.9.7` or newer. The plugin config should stay explicit and modern:
 
 - Keep sensitive values as OpenClaw secret inputs where possible.
 - Do not reintroduce implicit `process.env` fallback in runtime account resolution.

@@ -1,17 +1,6 @@
-import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
+import { defineSetupPluginEntry } from "openclaw/plugin-sdk/channel-core";
+import { groupmeSetupPlugin } from "./src/channel.setup.js";
 
-export default defineBundledChannelSetupEntry({
-  importMetaUrl: import.meta.url,
-  plugin: {
-    specifier: "./setup-plugin-api.js",
-    exportName: "groupmeSetupPlugin",
-  },
-  secrets: {
-    specifier: "./secret-contract-api.js",
-    exportName: "channelSecrets",
-  },
-  runtime: {
-    specifier: "./runtime-setter-api.js",
-    exportName: "setGroupMeRuntime",
-  },
-});
+// Loaded instead of the full entry while the channel is disabled or unconfigured,
+// so it must not pull in the webhook monitor, inbound pipeline, or sender.
+export default defineSetupPluginEntry(groupmeSetupPlugin);

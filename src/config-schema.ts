@@ -96,3 +96,54 @@ export const GroupMeConfigSchema = GroupMeAccountSchemaBase.extend({
   accounts: z.record(z.string(), GroupMeAccountSchemaBase.optional()).optional(),
   defaultAccount: z.string().optional(),
 }).strict();
+
+const accountUiHints = {
+  botId: {
+    label: "Bot ID",
+    help: "GroupMe bot ID from dev.groupme.com/bots.",
+    sensitive: true,
+  },
+  accessToken: {
+    label: "Access token",
+    help: "GroupMe access token; required to upload images for replies.",
+    sensitive: true,
+  },
+  callbackToken: {
+    label: "Callback token",
+    help: "Shared secret GroupMe appends as ?k= to the callback URL.",
+    sensitive: true,
+  },
+  groupId: {
+    label: "Group ID",
+    help: "Only callbacks from this GroupMe group are accepted.",
+  },
+  botName: {
+    label: "Bot name",
+    help: "Name used to detect mentions of the bot.",
+  },
+  webhookPath: {
+    label: "Webhook path",
+    placeholder: "/groupme",
+  },
+  security: {
+    label: "Webhook security",
+    advanced: true,
+  },
+} as const;
+
+/** Config UI hints keyed by config path, including the per-account overrides. */
+export const groupmeConfigUiHints: Record<
+  string,
+  {
+    label?: string;
+    help?: string;
+    sensitive?: boolean;
+    advanced?: boolean;
+    placeholder?: string;
+  }
+> = Object.fromEntries(
+  Object.entries(accountUiHints).flatMap(([key, hint]) => [
+    [key, hint],
+    [`accounts.*.${key}`, hint],
+  ]),
+);

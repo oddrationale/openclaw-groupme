@@ -1,7 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { fetchWithSsrFGuard, SsrFBlockedError } from "openclaw/plugin-sdk/infra-runtime";
+import { extname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { fetchWithSsrFGuard, SsrFBlockedError } from "openclaw/plugin-sdk/ssrf-runtime";
 import { resolveGroupMeAccount } from "./accounts.js";
-import { getGroupMeRuntime } from "./runtime.js";
+import { tryGetGroupMeRuntime } from "./runtime.js";
 import { resolveGroupMeSecurity } from "./security.js";
 import type { CoreConfig } from "./types.js";
 
@@ -10,31 +11,40 @@ const GROUPME_IMAGE_SERVICE = "https://image.groupme.com";
 export const GROUPME_MAX_TEXT_LENGTH = 1000;
 
 type SendGroupMeResult = {
+  /**
+   * The Bot API acknowledges posts with `202 Accepted` and no body, so there is
+   * no platform message id to report. Keep it empty rather than fabricating one.
+   */
   messageId: string;
   timestamp: number;
 };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-type RuntimeFetchRemoteMedia = (params: {
-  url: string;
-  fetchImpl?: FetchLike;
-  maxBytes?: number;
-  maxRedirects?: number;
-  ssrfPolicy?: {
-    allowPrivateNetwork?: boolean;
-  };
-}) => Promise<{
-  buffer: Buffer;
-  contentType?: string;
-}>;
 
-export async function sendGroupMeMessage(params: {
-  botId: string;
-  text: string;
-  pictureUrl?: string;
-  fetchFn?: FetchLike;
-  apiBaseUrl?: string;
-}): Promise<SendGroupMeResult> {
+/**
+ * Host delivery fences forwarded from the outbound message context. The host
+ * refreshes durable timing in `onPlatformSendDispatch` and re-checks send
+ * authority in `assertDirectAdapterHandoff`; both must run immediately before
+ * the provider request.
+ */
+export type GroupMeSendFences = {
+  onPlatformSendDispatch?: () => Promise<void>;
+  assertDirectAdapterHandoff?: () => void;
+  signal?: AbortSignal;
+};
+
+/** Host-authorized reader for local media paths (agent-generated files). */
+export type GroupMeMediaReadFile = (filePath: string) => Promise<Buffer>;
+
+export async function sendGroupMeMessage(
+  params: {
+    botId: string;
+    text: string;
+    pictureUrl?: string;
+    fetchFn?: FetchLike;
+    apiBaseUrl?: string;
+  } & GroupMeSendFences,
+): Promise<SendGroupMeResult> {
   const fetchFn = params.fetchFn ?? fetch;
   const apiBaseUrl = params.apiBaseUrl ?? GROUPME_API_BASE;
   const payload: { bot_id: string; text: string; picture_url?: string } = {
@@ -44,12 +54,16 @@ export async function sendGroupMeMessage(params: {
   if (params.pictureUrl) {
     payload.picture_url = params.pictureUrl;
   }
+  params.signal?.throwIfAborted();
+  await params.onPlatformSendDispatch?.();
+  params.assertDirectAdapterHandoff?.();
   const response = await fetchFn(`${apiBaseUrl}/bots/post`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    signal: params.signal,
   });
 
   if (!response.ok) {
@@ -57,7 +71,7 @@ export async function sendGroupMeMessage(params: {
   }
 
   return {
-    messageId: randomUUID(),
+    messageId: "",
     timestamp: Date.now(),
   };
 }
@@ -107,28 +121,26 @@ async function downloadRemoteMedia(params: {
   allowedMimePrefixes: string[];
   fetchFn?: FetchLike;
 }): Promise<{ data: Buffer; contentType: string }> {
-  const timedFetch = wrapFetchWithTimeout(params.fetchFn, params.requestTimeoutMs);
+  const runtime = tryGetGroupMeRuntime();
+  if (runtime) {
+    try {
+      const fetched = await runtime.channel.media.readRemoteMediaBuffer({
+        url: params.mediaUrl,
+        fetchImpl: params.fetchFn,
+        maxBytes: params.maxDownloadBytes,
+        maxRedirects: 3,
+        timeoutMs: params.requestTimeoutMs,
+        ssrfPolicy: {
+          allowPrivateNetwork: params.allowPrivateNetworks,
+        },
+      });
 
-  try {
-    const runtimeFetcher = getGroupMeRuntime().channel.media
-      .fetchRemoteMedia as RuntimeFetchRemoteMedia;
-    const fetched = await runtimeFetcher({
-      url: params.mediaUrl,
-      fetchImpl: timedFetch,
-      maxBytes: params.maxDownloadBytes,
-      maxRedirects: 3,
-      ssrfPolicy: {
-        allowPrivateNetwork: params.allowPrivateNetworks,
-      },
-    });
-
-    const contentType = enforceMimePolicy({
-      contentType: fetched.contentType,
-      allowedMimePrefixes: params.allowedMimePrefixes,
-    });
-    return { data: fetched.buffer, contentType };
-  } catch (error) {
-    if (!isRuntimeNotInitializedError(error)) {
+      const contentType = enforceMimePolicy({
+        contentType: fetched.contentType,
+        allowedMimePrefixes: params.allowedMimePrefixes,
+      });
+      return { data: fetched.buffer, contentType };
+    } catch (error) {
       if (isSsrfRelatedError(error)) {
         throw new Error(`GroupMe media download blocked by SSRF policy`);
       }
@@ -136,6 +148,7 @@ async function downloadRemoteMedia(params: {
     }
   }
 
+  const timedFetch = wrapFetchWithTimeout(params.fetchFn, params.requestTimeoutMs);
   try {
     const guarded = await fetchWithSsrFGuard({
       url: params.mediaUrl,
@@ -232,13 +245,6 @@ function enforceMimePolicy(params: {
   return contentType;
 }
 
-function isRuntimeNotInitializedError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  return /runtime not initialized/i.test(error.message);
-}
-
 function isSsrfRelatedError(error: unknown): boolean {
   if (error instanceof SsrFBlockedError) {
     return true;
@@ -298,14 +304,16 @@ async function readResponseBodyWithLimit(
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
-export async function sendGroupMeText(params: {
-  cfg: CoreConfig;
-  to: string;
-  text: string;
-  accountId?: string | null;
-  fetchFn?: FetchLike;
-  apiBaseUrl?: string;
-}): Promise<SendGroupMeResult> {
+export async function sendGroupMeText(
+  params: {
+    cfg: CoreConfig;
+    to: string;
+    text: string;
+    accountId?: string | null;
+    fetchFn?: FetchLike;
+    apiBaseUrl?: string;
+  } & GroupMeSendFences,
+): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
     cfg: params.cfg,
     accountId: params.accountId,
@@ -319,19 +327,71 @@ export async function sendGroupMeText(params: {
     text: params.text,
     fetchFn: params.fetchFn,
     apiBaseUrl: params.apiBaseUrl,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
+    assertDirectAdapterHandoff: params.assertDirectAdapterHandoff,
+    signal: params.signal,
   });
 }
 
-export async function sendGroupMeMedia(params: {
-  cfg: CoreConfig;
-  to: string;
-  text: string;
+function isRemoteMediaUrl(mediaUrl: string): boolean {
+  return /^https?:\/\//i.test(mediaUrl.trim());
+}
+
+function localMediaPath(mediaUrl: string): string {
+  const trimmed = mediaUrl.trim();
+  return /^file:\/\//i.test(trimmed) ? fileURLToPath(trimmed) : trimmed;
+}
+
+async function readLocalMedia(params: {
   mediaUrl: string;
-  accountId?: string | null;
-  fetchFn?: FetchLike;
-  apiBaseUrl?: string;
-  imageBaseUrl?: string;
-}): Promise<SendGroupMeResult> {
+  mediaReadFile?: GroupMeMediaReadFile;
+  maxDownloadBytes: number;
+  allowedMimePrefixes: string[];
+}): Promise<{ data: Buffer; contentType: string }> {
+  if (!params.mediaReadFile) {
+    // Only the host may authorize local file reads (sandbox roots, workspace
+    // policy). Without its reader, refuse rather than touching the filesystem.
+    throw new Error("GroupMe media send requires an http(s) mediaUrl for this delivery");
+  }
+  const filePath = localMediaPath(params.mediaUrl);
+  const data = await params.mediaReadFile(filePath);
+  if (data.length > params.maxDownloadBytes) {
+    throw new Error(
+      `GroupMe media exceeds maxDownloadBytes (${data.length} > ${params.maxDownloadBytes})`,
+    );
+  }
+  const contentType = enforceMimePolicy({
+    contentType: mimeTypeFromPath(filePath),
+    allowedMimePrefixes: params.allowedMimePrefixes,
+  });
+  return { data, contentType };
+}
+
+const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+function mimeTypeFromPath(filePath: string): string | undefined {
+  return IMAGE_MIME_BY_EXTENSION[extname(filePath).toLowerCase()];
+}
+
+export async function sendGroupMeMedia(
+  params: {
+    cfg: CoreConfig;
+    to: string;
+    text: string;
+    mediaUrl: string;
+    mediaReadFile?: GroupMeMediaReadFile;
+    accountId?: string | null;
+    fetchFn?: FetchLike;
+    apiBaseUrl?: string;
+    imageBaseUrl?: string;
+  } & GroupMeSendFences,
+): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
     cfg: params.cfg,
     accountId: params.accountId,
@@ -347,15 +407,23 @@ export async function sendGroupMeMedia(params: {
   }
 
   const security = resolveGroupMeSecurity(account.config);
-  const { data, contentType } = await downloadRemoteMedia({
-    mediaUrl: params.mediaUrl,
-    allowPrivateNetworks: security.media.allowPrivateNetworks,
-    maxDownloadBytes: security.media.maxDownloadBytes,
-    requestTimeoutMs: security.media.requestTimeoutMs,
-    allowedMimePrefixes: security.media.allowedMimePrefixes,
-    fetchFn: params.fetchFn,
-  });
+  const { data, contentType } = isRemoteMediaUrl(params.mediaUrl)
+    ? await downloadRemoteMedia({
+        mediaUrl: params.mediaUrl,
+        allowPrivateNetworks: security.media.allowPrivateNetworks,
+        maxDownloadBytes: security.media.maxDownloadBytes,
+        requestTimeoutMs: security.media.requestTimeoutMs,
+        allowedMimePrefixes: security.media.allowedMimePrefixes,
+        fetchFn: params.fetchFn,
+      })
+    : await readLocalMedia({
+        mediaUrl: params.mediaUrl,
+        mediaReadFile: params.mediaReadFile,
+        maxDownloadBytes: security.media.maxDownloadBytes,
+        allowedMimePrefixes: security.media.allowedMimePrefixes,
+      });
 
+  params.signal?.throwIfAborted();
   const pictureUrl = await uploadGroupMeImage({
     accessToken: account.accessToken,
     imageData: data,
@@ -370,5 +438,8 @@ export async function sendGroupMeMedia(params: {
     pictureUrl,
     fetchFn: params.fetchFn,
     apiBaseUrl: params.apiBaseUrl,
+    onPlatformSendDispatch: params.onPlatformSendDispatch,
+    assertDirectAdapterHandoff: params.assertDirectAdapterHandoff,
+    signal: params.signal,
   });
 }

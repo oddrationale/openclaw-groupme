@@ -30,6 +30,9 @@ jobs:
       - name: Check
         run: npm run check
 
+      - name: Gateway end-to-end (hermetic)
+        run: npm run test:e2e
+
       - name: Coverage
         if: matrix.node-version == 24
         run: npm run test:coverage
