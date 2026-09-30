@@ -13,9 +13,9 @@ import { createTempProject, packTarball, repoRoot, run } from "../integration/he
  * so a turn is observable without model credentials.
  */
 
-export const NONCE_PATTERN = /gme2e-[a-z0-9-]+/gi;
+const NONCE_PATTERN = /gme2e-[a-z0-9-]+/gi;
 
-export const openclawCli = join(repoRoot, "node_modules", "openclaw", "openclaw.mjs");
+const openclawCli = join(repoRoot, "node_modules", "openclaw", "openclaw.mjs");
 
 type JsonObject = Record<string, unknown>;
 
@@ -60,7 +60,7 @@ function messageText(content: unknown): string {
 }
 
 /** Latest nonce the user sent, ignoring earlier turns and buffered history. */
-export function latestUserNonce(messages: unknown): string | undefined {
+function latestUserNonce(messages: unknown): string | undefined {
   if (!Array.isArray(messages)) {
     return undefined;
   }
@@ -222,7 +222,7 @@ export type OpenClawHome = {
   configPath: string;
 };
 
-export function isolatedEnv(home: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+function isolatedEnv(home: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     HOME: home,
     USERPROFILE: home,

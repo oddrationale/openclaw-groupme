@@ -112,8 +112,11 @@ const groupmeMessageAdapter = defineChannelMessageAdapter({
 
 function collectGroupMeWarnings(account: ResolvedGroupMeAccount): string[] {
   const warnings: string[] = [];
-  const security = resolveGroupMeSecurity(account.config);
-  if (!security.callbackToken) {
+  // Audits may pass an unresolved account, so check secret inputs (which can be
+  // SecretRefs) rather than resolved string values.
+  const config = account.config ?? {};
+  const security = resolveGroupMeSecurity(config);
+  if (!hasSecretInput(config.callbackToken)) {
     warnings.push(
       "- GroupMe: callbackToken is not configured. Inbound callbacks are not token-authenticated; anyone who learns the webhook path and group_id can post. Set callbackToken and append ?k=<token> to the bot callback URL.",
     );
@@ -123,7 +126,7 @@ function collectGroupMeWarnings(account: ResolvedGroupMeAccount): string[] {
       "- GroupMe: groupId is not configured. Every inbound callback is rejected until groupId is set.",
     );
   }
-  if (!account.accessToken) {
+  if (!hasSecretInput(config.accessToken)) {
     warnings.push(
       "- GroupMe: accessToken is not configured. Text replies work, but image replies cannot be uploaded.",
     );

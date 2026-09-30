@@ -1,4 +1,4 @@
-import { createResolverContext } from "openclaw/plugin-sdk/security-runtime";
+import { createResolverContext } from "openclaw/plugin-sdk/secret-ref-runtime";
 import { describe, expect, it } from "vitest";
 import {
   channelSecrets,

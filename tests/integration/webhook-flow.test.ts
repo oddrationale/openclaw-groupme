@@ -4,55 +4,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGroupMeWebhookHandler } from "../../src/monitor.js";
 import { setGroupMeRuntime } from "../../src/runtime.js";
 import type { CoreConfig, ResolvedGroupMeAccount } from "../../src/types.js";
+import { createInboundCoreMock, deliverThroughCore, lastContext } from "../unit/helpers/inbound.js";
 import { type NodeHandlerServer, startNodeHandlerServer } from "./helpers/http.js";
 
-type FakeCore = PluginRuntime & {
-  fns: {
-    activityRecord: ReturnType<typeof vi.fn>;
-    resolveAgentRoute: ReturnType<typeof vi.fn>;
-    recordInboundSession: ReturnType<typeof vi.fn>;
-    dispatchReplyWithBufferedBlockDispatcher: ReturnType<typeof vi.fn>;
-    finalizeInboundContext: ReturnType<typeof vi.fn>;
-  };
-};
+// The fake runtime runs core's real ingress policy and context builder; only the
+// agent turn (`channel.inbound.dispatch`) is stubbed.
+type FakeCore = ReturnType<typeof createInboundCoreMock>;
 
 function buildCore(): FakeCore {
-  const fns = {
-    activityRecord: vi.fn(),
-    resolveAgentRoute: vi.fn(() => ({
-      agentId: "agent-main",
-      sessionKey: "groupme:group:g1",
-      accountId: "default",
-    })),
-    recordInboundSession: vi.fn(async () => undefined),
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(async () => undefined),
-    finalizeInboundContext: vi.fn((ctx: unknown) => ctx),
-  };
+  const core = createInboundCoreMock();
+  core.fns.resolveAgentRoute.mockReturnValue({
+    agentId: "agent-main",
+    sessionKey: "agent:agent-main:groupme:group:g1",
+    accountId: "default",
+  });
+  return core;
+}
 
-  return {
-    fns,
-    channel: {
-      activity: { record: fns.activityRecord },
-      routing: { resolveAgentRoute: fns.resolveAgentRoute },
-      mentions: { buildMentionRegexes: vi.fn(() => []) },
-      commands: { shouldHandleTextCommands: vi.fn(() => false) },
-      text: {
-        hasControlCommand: vi.fn(() => false),
-        chunkMarkdownText: vi.fn((text: string) => [text]),
-      },
-      reply: {
-        resolveEnvelopeFormatOptions: vi.fn(() => ({})),
-        formatAgentEnvelope: vi.fn((params: { body: string }) => `ENV:${params.body}`),
-        finalizeInboundContext: fns.finalizeInboundContext,
-        dispatchReplyWithBufferedBlockDispatcher: fns.dispatchReplyWithBufferedBlockDispatcher,
-      },
-      session: {
-        resolveStorePath: vi.fn(() => "/tmp/openclaw-groupme-integration-session"),
-        readSessionUpdatedAt: vi.fn(() => undefined),
-        recordInboundSession: fns.recordInboundSession,
-      },
-    },
-  } as unknown as FakeCore;
+function install(core: FakeCore): FakeCore {
+  setGroupMeRuntime(core.runtime as unknown as PluginRuntime);
+  return core;
 }
 
 function buildRuntimeEnv(): RuntimeEnv {
@@ -126,17 +97,19 @@ describe("GroupMe webhook flow integration", () => {
   let server: NodeHandlerServer | null = null;
 
   beforeEach(() => {
-    setGroupMeRuntime(buildCore());
+    install(buildCore());
   });
 
   afterEach(async () => {
     await server?.close();
     server = null;
+    vi.restoreAllMocks();
   });
 
   async function mount(
     params: {
       account?: ResolvedGroupMeAccount;
+      config?: CoreConfig;
       runtime?: RuntimeEnv;
       statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
     } = {},
@@ -144,7 +117,7 @@ describe("GroupMe webhook flow integration", () => {
     const runtime = params.runtime ?? buildRuntimeEnv();
     const handler = createGroupMeWebhookHandler({
       account: params.account ?? buildAccount(),
-      config: {} as CoreConfig,
+      config: params.config ?? ({} as CoreConfig),
       runtime,
       statusSink: params.statusSink,
     });
@@ -167,9 +140,8 @@ describe("GroupMe webhook flow integration", () => {
     expect(missingTokenResponse.status).toBe(404);
   });
 
-  it("moves an authenticated callback through inbound session and reply dispatch", async () => {
-    const core = buildCore();
-    setGroupMeRuntime(core);
+  it("moves an authenticated callback through ingress, context, and reply dispatch", async () => {
+    const core = install(buildCore());
     const statusSink = vi.fn();
     const { baseUrl } = await mount({ statusSink });
 
@@ -178,11 +150,11 @@ describe("GroupMe webhook flow integration", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("ok");
     await vi.waitFor(() => {
-      expect(core.fns.recordInboundSession).toHaveBeenCalledTimes(1);
-      expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalledTimes(1);
+      expect(core.fns.dispatch).toHaveBeenCalledTimes(1);
     });
 
-    const ctx = core.fns.finalizeInboundContext.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(core.fns.resolveStable).toHaveBeenCalledTimes(1);
+    const ctx = lastContext(core);
     expect(ctx).toEqual(
       expect.objectContaining({
         BodyForAgent: "hello openclaw",
@@ -196,8 +168,7 @@ describe("GroupMe webhook flow integration", () => {
   });
 
   it("acks ignored bot/system/empty callbacks without runtime dispatch", async () => {
-    const core = buildCore();
-    setGroupMeRuntime(core);
+    const core = install(buildCore());
     const { baseUrl } = await mount();
 
     for (const ignored of [
@@ -209,13 +180,12 @@ describe("GroupMe webhook flow integration", () => {
       expect(response.status).toBe(200);
     }
 
-    expect(core.fns.recordInboundSession).not.toHaveBeenCalled();
-    expect(core.fns.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
+    expect(core.fns.resolveStable).not.toHaveBeenCalled();
+    expect(core.fns.dispatch).not.toHaveBeenCalled();
   });
 
   it("deduplicates replayed payloads and rejects wrong group ids", async () => {
-    const core = buildCore();
-    setGroupMeRuntime(core);
+    const core = install(buildCore());
     const { baseUrl } = await mount();
     const replay = payload({ id: "replay", source_guid: "replay-guid" });
 
@@ -224,13 +194,12 @@ describe("GroupMe webhook flow integration", () => {
     expect((await postCallback(baseUrl, payload({ group_id: "wrong" }))).status).toBe(403);
 
     await vi.waitFor(() => {
-      expect(core.fns.recordInboundSession).toHaveBeenCalledTimes(1);
+      expect(core.fns.dispatch).toHaveBeenCalledTimes(1);
     });
   });
 
   it("enforces per-sender rate limiting before inbound dispatch", async () => {
-    const core = buildCore();
-    setGroupMeRuntime(core);
+    const core = install(buildCore());
     const { baseUrl } = await mount({
       account: buildAccount({
         config: {
@@ -256,7 +225,90 @@ describe("GroupMe webhook flow integration", () => {
     );
 
     await vi.waitFor(() => {
-      expect(core.fns.recordInboundSession).toHaveBeenCalledTimes(1);
+      expect(core.fns.dispatch).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("delivers the agent reply back through the GroupMe Bot API", async () => {
+    const core = install(buildCore());
+    const realFetch = globalThis.fetch;
+    const botPosts: unknown[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input) === "https://api.groupme.com/v3/bots/post") {
+        botPosts.push(JSON.parse(String(init?.body)));
+        return new Response("", { status: 202, statusText: "Accepted" });
+      }
+      return realFetch(input, init);
+    });
+    core.fns.dispatch.mockImplementationOnce(async (params) => {
+      await deliverThroughCore(params, { text: "<think>plan</think>pong" });
+    });
+    const statusSink = vi.fn();
+    const account = buildAccount();
+    // Outbound sends re-resolve the account from the live config, as the gateway does.
+    const config = { channels: { groupme: account.config } } as CoreConfig;
+    const { baseUrl, runtime } = await mount({ account, config, statusSink });
+
+    expect((await postCallback(baseUrl, payload({ text: "ping" }))).status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(botPosts).toEqual([{ bot_id: "bot-1", text: "pong" }]);
+    });
+    expect(statusSink).toHaveBeenCalledWith({ lastOutboundAt: expect.any(Number) });
+    expect(core.fns.activityRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "groupme", direction: "outbound" }),
+    );
+    expect(runtime.error).not.toHaveBeenCalled();
+  });
+
+  it("acks but drops senders outside allowFrom", async () => {
+    const core = install(buildCore());
+    const { baseUrl, runtime } = await mount({
+      account: buildAccount({ config: { ...buildAccount().config, allowFrom: ["someone-else"] } }),
+    });
+
+    expect((await postCallback(baseUrl, payload())).status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(runtime.log).toHaveBeenCalledWith("groupme: drop sender user-1 (not in allowFrom)");
+    });
+    expect(core.fns.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("buffers unmentioned chatter and replays it as context on the next mention", async () => {
+    const core = install(buildCore());
+    const { baseUrl } = await mount({
+      account: buildAccount({
+        config: { ...buildAccount().config, requireMention: true, botName: "oddclaw" },
+      }),
+    });
+
+    expect(
+      (
+        await postCallback(
+          baseUrl,
+          payload({ id: "chatter", source_guid: "chatter", text: "anyone up for lunch?" }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await postCallback(
+          baseUrl,
+          payload({ id: "mention", source_guid: "mention", text: "@oddclaw thoughts?" }),
+        )
+      ).status,
+    ).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(core.fns.dispatch).toHaveBeenCalledTimes(1);
+    });
+    const ctx = lastContext(core);
+    expect(ctx.MessageSid).toBe("mention");
+    expect(ctx.WasMentioned).toBe(true);
+    expect(ctx.Body).toContain("Alice: anyone up for lunch?");
+    expect(ctx.InboundHistory).toEqual([
+      expect.objectContaining({ sender: "Alice", body: "anyone up for lunch?" }),
+    ]);
   });
 });

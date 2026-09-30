@@ -1,72 +1,122 @@
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { importBuilt } from "./helpers/package.js";
 
-describe("built OpenClaw plugin contract", () => {
-  it("exposes the bundled channel entry through the packaged runtime entrypoint", async () => {
-    const mod = await importBuilt<{ default: Record<string, unknown> }>("dist/index.js");
+type BuiltChannelPlugin = {
+  id: string;
+  meta?: { id?: string };
+  setupWizard?: unknown;
+  setupContract?: {
+    kind?: string;
+    validateInput?: (params: { cfg: unknown; accountId: string; input: unknown }) => string | null;
+    applyAccountConfig?: unknown;
+  };
+  capabilities?: { chatTypes?: string[]; media?: boolean };
+  configSchema: {
+    schema?: unknown;
+    runtime: { safeParse(input: unknown): { success: boolean; error?: unknown } };
+  };
+  config: {
+    resolveAccount(cfg: unknown, accountId?: string): { configured: boolean };
+    describeAccount(account: unknown): Record<string, unknown>;
+  };
+  gateway?: { startAccount?: unknown };
+  outbound?: { sendText?: unknown; sendMedia?: unknown };
+  message?: { send?: { text?: unknown; media?: unknown } };
+  secrets?: unknown;
+};
 
-    expect(mod.default).toEqual(
+type BuiltEntry = {
+  id: string;
+  name: string;
+  description: string;
+  register(api: unknown): void;
+  channelPlugin: BuiltChannelPlugin;
+  setChannelRuntime?: (runtime: unknown) => void;
+};
+
+async function loadEntry(): Promise<BuiltEntry> {
+  return (await importBuilt<{ default: BuiltEntry }>("dist/index.js")).default;
+}
+
+describe("built OpenClaw plugin contract", () => {
+  it("exposes a channel plugin entry through the packaged runtime entrypoint", async () => {
+    const entry = await loadEntry();
+
+    expect(entry).toEqual(
       expect.objectContaining({
-        kind: "bundled-channel-entry",
         id: "groupme",
         name: "GroupMe",
         description: "GroupMe channel plugin",
       }),
     );
-    expect(mod.default.loadChannelPlugin).toBeTypeOf("function");
-    expect(mod.default.loadChannelSecrets).toBeTypeOf("function");
-    expect(mod.default.setChannelRuntime).toBeTypeOf("function");
+    expect(entry.register).toBeTypeOf("function");
+    expect(entry.setChannelRuntime).toBeTypeOf("function");
+    expect(entry.channelPlugin.id).toBe("groupme");
+    // Not the legacy bundled-channel entry shape.
+    expect(entry).not.toHaveProperty("kind");
+    expect(entry).not.toHaveProperty("loadChannelPlugin");
   }, 60_000);
 
-  it("exposes setup and channel sidecars OpenClaw can import directly", async () => {
-    const setup = await importBuilt<{ default: Record<string, unknown> }>("dist/setup-entry.js");
-    const channel = await importBuilt<{
-      groupmePlugin: {
-        id: string;
-        setupWizard?: unknown;
-        setup?: { validateInput?: unknown };
-        capabilities?: { chatTypes?: string[]; media?: boolean };
-        configSchema?: { runtime?: { safeParse?: unknown } };
-        gateway?: { startAccount?: unknown };
-        outbound?: { sendText?: unknown; sendMedia?: unknown };
-      };
-    }>("dist/channel-plugin-api.js");
+  it("registers the channel and hands the host runtime to the built runtime store", async () => {
+    const entry = await loadEntry();
+    const { tryGetGroupMeRuntime } = await importBuilt<{
+      tryGetGroupMeRuntime: () => unknown;
+    }>("dist/src/runtime.js");
+    const runtime = { host: "fake" };
+    const registerChannel = vi.fn();
 
-    expect(setup.default).toEqual(
-      expect.objectContaining({
-        kind: "bundled-channel-setup-entry",
-      }),
-    );
-    expect(channel.groupmePlugin.id).toBe("groupme");
-    expect(channel.groupmePlugin.capabilities).toEqual(
+    entry.register({ registrationMode: "full", runtime, registerChannel });
+
+    expect(registerChannel).toHaveBeenCalledWith({ plugin: entry.channelPlugin });
+    expect(tryGetGroupMeRuntime()).toBe(runtime);
+  }, 60_000);
+
+  it("exposes the runtime channel surface OpenClaw loads", async () => {
+    const plugin = (await loadEntry()).channelPlugin;
+
+    expect(plugin.capabilities).toEqual(
       expect.objectContaining({
         chatTypes: ["group"],
         media: true,
       }),
     );
-    expect(channel.groupmePlugin.setupWizard).toBeDefined();
-    expect(channel.groupmePlugin.setup?.validateInput).toBeTypeOf("function");
-    expect(channel.groupmePlugin.configSchema?.runtime?.safeParse).toBeTypeOf("function");
-    expect(channel.groupmePlugin.gateway?.startAccount).toBeTypeOf("function");
-    expect(channel.groupmePlugin.outbound?.sendText).toBeTypeOf("function");
-    expect(channel.groupmePlugin.outbound?.sendMedia).toBeTypeOf("function");
+    expect(plugin.setupWizard).toBeDefined();
+    expect(plugin.setupContract?.kind).toBe("channel-owned");
+    expect(plugin.setupContract?.validateInput).toBeTypeOf("function");
+    expect(plugin.setupContract?.applyAccountConfig).toBeTypeOf("function");
+    expect(plugin.configSchema?.runtime?.safeParse).toBeTypeOf("function");
+    expect(plugin.gateway?.startAccount).toBeTypeOf("function");
+    expect(plugin.outbound?.sendText).toBeTypeOf("function");
+    expect(plugin.outbound?.sendMedia).toBeTypeOf("function");
+    expect(plugin.message?.send?.text).toBeTypeOf("function");
+    expect(plugin.message?.send?.media).toBeTypeOf("function");
+  }, 60_000);
+
+  it("exposes a setup-only entry with the setup-safe plugin surface", async () => {
+    const setup = await importBuilt<{ default: { plugin: BuiltChannelPlugin } }>(
+      "dist/setup-entry.js",
+    );
+    const plugin = setup.default.plugin;
+
+    expect(Object.keys(setup.default)).toEqual(["plugin"]);
+    expect(plugin.id).toBe("groupme");
+    expect(plugin.setupContract?.validateInput).toBeTypeOf("function");
+    expect(
+      plugin.setupContract?.validateInput?.({
+        cfg: {},
+        accountId: DEFAULT_ACCOUNT_ID,
+        input: { token: "bot-1" },
+      }),
+    ).toBeNull();
+    expect(plugin.setupWizard).toBeDefined();
+    expect(plugin.secrets).toBeDefined();
+    expect(plugin.gateway).toBeUndefined();
+    expect(plugin.outbound).toBeUndefined();
   }, 60_000);
 
   it("accepts modern config with OpenClaw secret input references", async () => {
-    const { groupmePlugin } = await importBuilt<{
-      groupmePlugin: {
-        configSchema: {
-          runtime: {
-            safeParse(input: unknown): { success: boolean; error?: unknown };
-          };
-        };
-        config: {
-          resolveAccount(cfg: unknown, accountId?: string): { configured: boolean };
-          describeAccount(account: unknown): Record<string, unknown>;
-        };
-      };
-    }>("dist/channel-plugin-api.js");
+    const groupmePlugin = (await loadEntry()).channelPlugin;
 
     const cfg = {
       channels: {
@@ -92,6 +142,7 @@ describe("built OpenClaw plugin contract", () => {
     };
 
     expect(groupmePlugin.configSchema.runtime.safeParse(cfg.channels.groupme).success).toBe(true);
+    expect(groupmePlugin.configSchema.runtime.safeParse({ unknownKey: true }).success).toBe(false);
 
     const account = groupmePlugin.config.resolveAccount(cfg, DEFAULT_ACCOUNT_ID);
     expect(account.configured).toBe(true);

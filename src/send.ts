@@ -406,6 +406,7 @@ export async function sendGroupMeMedia(
     );
   }
 
+  params.signal?.throwIfAborted();
   const security = resolveGroupMeSecurity(account.config);
   const { data, contentType } = isRemoteMediaUrl(params.mediaUrl)
     ? await downloadRemoteMedia({

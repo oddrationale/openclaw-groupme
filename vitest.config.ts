@@ -22,5 +22,6 @@ export default defineConfig({
       },
     },
     include: ["tests/**/*.test.ts"],
+    setupFiles: ["tests/helpers/isolate-openclaw-state.ts"],
   },
 });

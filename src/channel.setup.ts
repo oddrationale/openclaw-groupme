@@ -59,12 +59,13 @@ export const groupmeSetupPlugin = {
     listAccountIds: (cfg) => listGroupMeAccountIds(cfg as CoreConfig),
     resolveAccount: (cfg, accountId) =>
       resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId }),
+    // Core's audit and diagnostics hand this result to adapters that expect the
+    // resolved account (e.g. security.collectWarnings), so keep every account field
+    // and add the status-safe credential summaries on top.
     inspectAccount: (cfg, accountId) => {
       const account = resolveGroupMeAccount({ cfg: cfg as CoreConfig, accountId });
       return {
-        accountId: account.accountId,
-        enabled: account.enabled,
-        configured: account.configured,
+        ...account,
         botIdStatus: hasSecretInput(account.config.botId) ? "available" : "missing",
         accessTokenStatus: hasSecretInput(account.config.accessToken) ? "available" : "missing",
         callbackTokenStatus: hasSecretInput(account.config.callbackToken) ? "available" : "missing",
