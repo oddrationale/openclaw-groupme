@@ -480,7 +480,7 @@ Version 0.6 moves the plugin onto the OpenClaw 2026.9.7 plugin SDK. Your existin
 - **Installs need `--accept-capabilities`** (OpenClaw's capability consent for third-party plugins).
 - **`--bot-id`** is the new `channels add` flag for the bot ID (`--token` still works), and `--group-id`, `--callback-token`, and `--bot-name` are now available.
 - **`security.commandBypass.requireAllowFrom: false`** now always lets any group member run control commands. Previously it only took effect together with the removed global `commands.useAccessGroups: false`.
-- **Outbound message IDs** are empty: the Bot API does not return one, and the plugin no longer invents random IDs.
+- **Outbound message IDs are real GroupMe IDs.** The Bot API does not return one, so with `accessToken` configured the plugin reads it back from the group feed right after posting. Without `accessToken` the send is reported as unconfirmed (OpenClaw 2026.9.x shows `adapter_returned_no_identity`) instead of the random IDs earlier versions invented.
 - **Unconfigured accounts** (no `botId`) report a blocked status instead of failing startup in a restart loop.
 
 ## Notes and Limitations
@@ -499,7 +499,7 @@ GroupMe bots are intentionally limited compared to full user accounts. These con
 
 - Bot and system messages from GroupMe are automatically ignored
 - GroupMe has a 1000-character limit per message — longer replies are chunked automatically
-- Image replies require `accessToken` so the plugin can upload images to GroupMe's Image Service. Images can come from public `https` URLs or from files the agent generates in its workspace (read through OpenClaw's scoped media roots)
+- `accessToken` is strongly recommended: it lets the plugin confirm each sent message's GroupMe ID (OpenClaw treats sends without one as unconfirmed), and image replies need it to upload to GroupMe's Image Service. Images can come from public `https` URLs or from files the agent generates in its workspace (read through OpenClaw's scoped media roots)
 - GroupMe renders plain text, so the plugin tells the agent to avoid Markdown and strips assistant-only markup from replies
 - The interactive wizard registers the bot with GroupMe using your `publicDomain`, so **your domain must be live and reachable** during setup
 - If you change your domain later, update `publicDomain` in your config and update the bot's callback URL at [dev.groupme.com/bots](https://dev.groupme.com/bots)
@@ -525,6 +525,9 @@ GroupMe bots are intentionally limited compared to full user accounts. These con
 - **Image replies fail:**
   - Make sure `accessToken` is configured
   - Only `image/*` content is accepted (see `security.media.allowedMimePrefixes`)
+
+- **`openclaw message send` reports `adapter_returned_no_identity`:**
+  - The message was posted, but its ID could not be confirmed. Configure `accessToken` so the plugin can look it up in the group feed.
 
 - **`openclaw channels status` shows GroupMe as blocked:**
   - The account has no `botId`; the webhook is not registered until one is configured

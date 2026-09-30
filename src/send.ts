@@ -2,6 +2,7 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchWithSsrFGuard, SsrFBlockedError } from "openclaw/plugin-sdk/ssrf-runtime";
 import { resolveGroupMeAccount } from "./accounts.js";
+import { normalizeGroupMeTarget } from "./normalize.js";
 import { tryGetGroupMeRuntime } from "./runtime.js";
 import { resolveGroupMeSecurity } from "./security.js";
 import type { CoreConfig } from "./types.js";
@@ -12,8 +13,9 @@ export const GROUPME_MAX_TEXT_LENGTH = 1000;
 
 type SendGroupMeResult = {
   /**
-   * The Bot API acknowledges posts with `202 Accepted` and no body, so there is
-   * no platform message id to report. Keep it empty rather than fabricating one.
+   * The Bot API acknowledges posts with `202 Accepted` and no body. This is the
+   * id confirmed from the group feed when requested, otherwise empty: never a
+   * fabricated value.
    */
   messageId: string;
   timestamp: number;
@@ -74,6 +76,109 @@ export async function sendGroupMeMessage(
     messageId: "",
     timestamp: Date.now(),
   };
+}
+
+type GroupMeListedMessage = {
+  id?: unknown;
+  text?: unknown;
+  sender_type?: unknown;
+  created_at?: unknown;
+  attachments?: Array<{ type?: unknown; url?: unknown }>;
+};
+
+// Message ids already attributed to a send, so two identical posts in quick
+// succession resolve to two different messages.
+const claimedMessageIds: string[] = [];
+const MAX_CLAIMED_MESSAGE_IDS = 500;
+const CONFIRM_DELAYS_MS = [150, 350, 750, 1500];
+
+function claimMessageId(id: string): void {
+  claimedMessageIds.push(id);
+  if (claimedMessageIds.length > MAX_CLAIMED_MESSAGE_IDS) {
+    claimedMessageIds.splice(0, claimedMessageIds.length - MAX_CLAIMED_MESSAGE_IDS);
+  }
+}
+
+function matchesBotPost(
+  message: GroupMeListedMessage,
+  params: { text: string; pictureUrl?: string; sentAfterSeconds: number },
+): message is GroupMeListedMessage & { id: string } {
+  if (typeof message.id !== "string" || claimedMessageIds.includes(message.id)) {
+    return false;
+  }
+  if (message.sender_type !== "bot") {
+    return false;
+  }
+  if (typeof message.created_at !== "number" || message.created_at < params.sentAfterSeconds) {
+    return false;
+  }
+  const text = typeof message.text === "string" ? message.text.trim() : "";
+  if (text !== params.text.trim()) {
+    return false;
+  }
+  if (!params.pictureUrl) {
+    return true;
+  }
+  return (message.attachments ?? []).some(
+    (attachment) => attachment.type === "image" && attachment.url === params.pictureUrl,
+  );
+}
+
+/**
+ * The Bot API acknowledges posts with `202 Accepted` and no body, so it never
+ * returns a message id. OpenClaw treats a send without a platform id as
+ * unconfirmed, so when an access token is available we read the group's latest
+ * messages and attribute the matching bot post. Returns undefined (unconfirmed)
+ * rather than guessing when no match appears; lookup failures never fail a send
+ * that already went out.
+ */
+export async function confirmGroupMeBotMessageId(params: {
+  accessToken: string;
+  groupId: string;
+  text: string;
+  pictureUrl?: string;
+  sentAt: number;
+  fetchFn?: FetchLike;
+  apiBaseUrl?: string;
+  signal?: AbortSignal;
+  delaysMs?: readonly number[];
+}): Promise<string | undefined> {
+  const fetchFn = params.fetchFn ?? fetch;
+  const apiBaseUrl = params.apiBaseUrl ?? GROUPME_API_BASE;
+  // GroupMe timestamps are whole seconds; allow for clock skew between hosts.
+  const sentAfterSeconds = Math.floor(params.sentAt / 1000) - 5;
+  for (const delayMs of params.delaysMs ?? CONFIRM_DELAYS_MS) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (params.signal?.aborted) {
+      return undefined;
+    }
+    try {
+      const url = new URL(`${apiBaseUrl}/groups/${encodeURIComponent(params.groupId)}/messages`);
+      url.searchParams.set("limit", "20");
+      url.searchParams.set("token", params.accessToken);
+      const response = await fetchFn(url, { signal: params.signal });
+      if (!response.ok) {
+        continue;
+      }
+      const body = (await response.json()) as {
+        response?: { messages?: GroupMeListedMessage[] };
+      };
+      const match = (body.response?.messages ?? []).find((message) =>
+        matchesBotPost(message, {
+          text: params.text,
+          pictureUrl: params.pictureUrl,
+          sentAfterSeconds,
+        }),
+      );
+      if (match) {
+        claimMessageId(match.id);
+        return match.id;
+      }
+    } catch {
+      // Best effort: the post already succeeded; keep trying until attempts run out.
+    }
+  }
+  return undefined;
 }
 
 function extractPictureUrl(value: unknown): string | null {
@@ -312,6 +417,8 @@ export async function sendGroupMeText(
     accountId?: string | null;
     fetchFn?: FetchLike;
     apiBaseUrl?: string;
+    /** Look up the posted message's id (needs accessToken); see confirmGroupMeBotMessageId. */
+    confirmMessageId?: boolean;
   } & GroupMeSendFences,
 ): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
@@ -322,7 +429,7 @@ export async function sendGroupMeText(
     throw new Error(`GroupMe account "${account.accountId}" is missing botId`);
   }
 
-  return sendGroupMeMessage({
+  const result = await sendGroupMeMessage({
     botId: account.botId,
     text: params.text,
     fetchFn: params.fetchFn,
@@ -331,6 +438,43 @@ export async function sendGroupMeText(
     assertDirectAdapterHandoff: params.assertDirectAdapterHandoff,
     signal: params.signal,
   });
+  return withConfirmedMessageId({
+    result,
+    enabled: params.confirmMessageId,
+    accessToken: account.accessToken,
+    groupId: normalizeGroupMeTarget(params.to) ?? account.config.groupId,
+    text: params.text,
+    fetchFn: params.fetchFn,
+    apiBaseUrl: params.apiBaseUrl,
+    signal: params.signal,
+  });
+}
+
+async function withConfirmedMessageId(params: {
+  result: SendGroupMeResult;
+  enabled?: boolean;
+  accessToken: string;
+  groupId?: string;
+  text: string;
+  pictureUrl?: string;
+  fetchFn?: FetchLike;
+  apiBaseUrl?: string;
+  signal?: AbortSignal;
+}): Promise<SendGroupMeResult> {
+  if (!params.enabled || !params.accessToken || !params.groupId) {
+    return params.result;
+  }
+  const messageId = await confirmGroupMeBotMessageId({
+    accessToken: params.accessToken,
+    groupId: params.groupId,
+    text: params.text,
+    pictureUrl: params.pictureUrl,
+    sentAt: params.result.timestamp,
+    fetchFn: params.fetchFn,
+    apiBaseUrl: params.apiBaseUrl,
+    signal: params.signal,
+  });
+  return messageId ? { ...params.result, messageId } : params.result;
 }
 
 function isRemoteMediaUrl(mediaUrl: string): boolean {
@@ -390,6 +534,8 @@ export async function sendGroupMeMedia(
     fetchFn?: FetchLike;
     apiBaseUrl?: string;
     imageBaseUrl?: string;
+    /** Look up the posted message's id; see confirmGroupMeBotMessageId. */
+    confirmMessageId?: boolean;
   } & GroupMeSendFences,
 ): Promise<SendGroupMeResult> {
   const account = resolveGroupMeAccount({
@@ -433,7 +579,7 @@ export async function sendGroupMeMedia(
     imageBaseUrl: params.imageBaseUrl,
   });
 
-  return sendGroupMeMessage({
+  const result = await sendGroupMeMessage({
     botId: account.botId,
     text: params.text,
     pictureUrl,
@@ -441,6 +587,17 @@ export async function sendGroupMeMedia(
     apiBaseUrl: params.apiBaseUrl,
     onPlatformSendDispatch: params.onPlatformSendDispatch,
     assertDirectAdapterHandoff: params.assertDirectAdapterHandoff,
+    signal: params.signal,
+  });
+  return withConfirmedMessageId({
+    result,
+    enabled: params.confirmMessageId,
+    accessToken: account.accessToken,
+    groupId: normalizeGroupMeTarget(params.to) ?? account.config.groupId,
+    text: params.text,
+    pictureUrl,
+    fetchFn: params.fetchFn,
+    apiBaseUrl: params.apiBaseUrl,
     signal: params.signal,
   });
 }

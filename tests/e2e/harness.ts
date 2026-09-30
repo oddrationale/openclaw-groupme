@@ -192,6 +192,21 @@ export async function startFakeGroupMe(): Promise<FakeGroupMe> {
       res.end();
       return;
     }
+    // Group feed used by the plugin to confirm the id of a bot post.
+    if (req.method === "GET" && /^\/v3\/groups\/[^/]+\/messages/.test(req.url ?? "")) {
+      const messages = posts
+        .map((post, index) => ({
+          id: `fake-${index + 1}`,
+          sender_type: "bot",
+          created_at: Math.floor(Date.now() / 1000),
+          text: typeof post.text === "string" && post.text ? post.text : null,
+          attachments: post.picture_url ? [{ type: "image", url: post.picture_url }] : [],
+        }))
+        .reverse();
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ response: { count: messages.length, messages } }));
+      return;
+    }
     res.statusCode = 404;
     res.end();
   });

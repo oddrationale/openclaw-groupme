@@ -48,17 +48,22 @@ type GroupMeMediaContext = Omit<ChannelMessageSendMediaContext, "onDeliveryResul
 function createGroupMeSendResult(params: {
   groupId: string;
   kind: MessageReceiptPartKind;
+  messageId: string;
   timestamp: number;
 }): GroupMeSendResult {
   return {
     channel: CHANNEL_ID,
-    // The Bot API returns 202 with no body. Keep the receipt empty so a group id
-    // or a random value never masquerades as a platform message id.
-    messageId: "",
+    // The Bot API returns 202 with no body; the id is confirmed from the group
+    // feed when an access token is configured. Without one the receipt stays
+    // empty (an unconfirmed send) so a group id or random value never
+    // masquerades as a platform message id.
+    messageId: params.messageId,
     timestamp: params.timestamp,
     target: { kind: "chat", id: params.groupId },
     receipt: createMessageReceiptFromOutboundResults({
-      results: [],
+      results: params.messageId
+        ? [{ messageId: params.messageId, timestamp: params.timestamp }]
+        : [],
       threadId: params.groupId,
       kind: params.kind,
     }),
@@ -74,8 +79,14 @@ async function sendGroupMeTextMessage(ctx: GroupMeTextContext): Promise<GroupMeS
     onPlatformSendDispatch: ctx.onPlatformSendDispatch,
     assertDirectAdapterHandoff: ctx.assertDirectAdapterHandoff,
     signal: ctx.signal,
+    confirmMessageId: true,
   });
-  return createGroupMeSendResult({ groupId: ctx.to, kind: "text", timestamp: result.timestamp });
+  return createGroupMeSendResult({
+    groupId: ctx.to,
+    kind: "text",
+    messageId: result.messageId,
+    timestamp: result.timestamp,
+  });
 }
 
 async function sendGroupMeMediaMessage(ctx: GroupMeMediaContext): Promise<GroupMeSendResult> {
@@ -92,8 +103,14 @@ async function sendGroupMeMediaMessage(ctx: GroupMeMediaContext): Promise<GroupM
     onPlatformSendDispatch: ctx.onPlatformSendDispatch,
     assertDirectAdapterHandoff: ctx.assertDirectAdapterHandoff,
     signal: ctx.signal,
+    confirmMessageId: true,
   });
-  return createGroupMeSendResult({ groupId: ctx.to, kind: "media", timestamp: result.timestamp });
+  return createGroupMeSendResult({
+    groupId: ctx.to,
+    kind: "media",
+    messageId: result.messageId,
+    timestamp: result.timestamp,
+  });
 }
 
 const groupmeMessageAdapter = defineChannelMessageAdapter({
@@ -128,7 +145,7 @@ function collectGroupMeWarnings(account: ResolvedGroupMeAccount): string[] {
   }
   if (!hasSecretInput(config.accessToken)) {
     warnings.push(
-      "- GroupMe: accessToken is not configured. Text replies work, but image replies cannot be uploaded.",
+      "- GroupMe: accessToken is not configured. Text replies are sent but cannot be confirmed (no message id), and image replies cannot be uploaded.",
     );
   }
   if (!security.commandBypass.requireAllowFrom) {

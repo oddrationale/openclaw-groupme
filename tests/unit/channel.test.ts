@@ -341,6 +341,7 @@ describe("groupmePlugin outbound and resolver", () => {
       onPlatformSendDispatch,
       assertDirectAdapterHandoff,
       signal,
+      confirmMessageId: true,
     });
     expect(sendGroupMeMediaMock).toHaveBeenCalledWith({
       cfg: coreCfg,
@@ -352,6 +353,7 @@ describe("groupmePlugin outbound and resolver", () => {
       onPlatformSendDispatch,
       assertDirectAdapterHandoff,
       signal,
+      confirmMessageId: true,
     });
   });
 
@@ -366,6 +368,26 @@ describe("groupmePlugin outbound and resolver", () => {
       }),
     ).rejects.toThrow("mediaUrl");
     expect(sendGroupMeMediaMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the confirmed GroupMe message id in the receipt", async () => {
+    sendGroupMeTextMock.mockResolvedValueOnce({
+      messageId: "179000000000000001",
+      timestamp: 100,
+    });
+    const result = await sendText({
+      cfg: cfg({ botId: "bot-1", accessToken: "token-1" }),
+      to: "g1",
+      text: "hello",
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    expect(result.messageId).toBe("179000000000000001");
+    expect(result.receipt).toEqual(
+      expect.objectContaining({
+        primaryPlatformMessageId: "179000000000000001",
+        platformMessageIds: ["179000000000000001"],
+      }),
+    );
   });
 
   it("resolves targets and marks user lookups as group-only", async () => {

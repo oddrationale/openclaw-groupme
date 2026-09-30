@@ -194,7 +194,9 @@ describeLive("GroupMe plugin outbound live smoke", () => {
           dryRun: false,
         }),
       );
-      // The Bot API returns no message id, so confirm delivery from the group feed.
+      // The Bot API returns no message id; the plugin confirms it from the group
+      // feed (accessToken is configured), so OpenClaw records a real identity.
+      expect(send.messageId).toMatch(/^\d+$/);
       const text = `openclaw-groupme plugin outbound live smoke ${runId}`;
       const delivered = await waitForGroupMessage(groupId, text);
       expect(delivered.sender_type).toBe("bot");
