@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.5.1...openclaw-groupme-v0.6.0) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* requires OpenClaw >= 2026.9.7 and Node.js >= 24.16.0; third-party installs need --accept-capabilities.
+
+### Features
+
+* migrate GroupMe channel to the OpenClaw 2026.9.7 plugin SDK ([#97](https://github.com/oddrationale/openclaw-groupme/issues/97)) ([3199527](https://github.com/oddrationale/openclaw-groupme/commit/319952782dfa6c9ce106b7ec1fe726510e1eaae1))
+
 ## [0.5.1](https://github.com/oddrationale/openclaw-groupme/compare/openclaw-groupme-v0.5.0...openclaw-groupme-v0.5.1) (2026-06-07)
 
 
