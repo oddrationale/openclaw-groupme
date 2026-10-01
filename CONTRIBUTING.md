@@ -54,9 +54,9 @@ npx vitest run -t "accepts active"
 
 ## Code Style
 
-Biome owns formatting and linting. Prefer `npm run lint:fix` for safe automatic fixes. Keep TypeScript strict and avoid adding compatibility shims unless the current OpenClaw release requires them.
+Oxlint (type-aware, via `oxlint-tsgolint`) owns linting and oxfmt owns formatting; both configs (`.oxlintrc.json`, `.oxfmtrc.jsonc`) follow upstream OpenClaw's. Prefer `npm run lint:fix` for safe automatic fixes. Keep TypeScript strict and avoid adding compatibility shims unless the current OpenClaw release requires them.
 
-Pull requests also run autofix.ci. If Biome can safely repair formatting or import-order drift, autofix.ci pushes those fixes back to the PR branch.
+Pull requests also run autofix.ci. If oxlint or oxfmt can safely repair lint, formatting, or import-order drift, autofix.ci pushes those fixes back to the PR branch.
 
 All imports use `.js` extensions because the package uses Node16 module resolution.
 

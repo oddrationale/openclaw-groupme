@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { serveAsync } from "../integration/helpers/http.js";
 import { createTempProject, packTarball, repoRoot, run } from "../integration/helpers/package.js";
 
 /**
@@ -19,6 +20,11 @@ const openclawCli = join(repoRoot, "node_modules", "openclaw", "openclaw.mjs");
 
 type JsonObject = Record<string, unknown>;
 
+export function stringField(value: JsonObject, key: string): string {
+  const field = value[key];
+  return typeof field === "string" ? field : "";
+}
+
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -27,7 +33,9 @@ function listen(server: Server): Promise<number> {
 }
 
 function close(server: Server): Promise<void> {
-  return new Promise((resolve) => server.close(() => resolve()));
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+  });
 }
 
 export async function freePort(): Promise<number> {
@@ -52,7 +60,7 @@ function messageText(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((part) =>
-        part && typeof part === "object" ? String((part as JsonObject).text ?? "") : "",
+        part && typeof part === "object" ? stringField(part as JsonObject, "text") : "",
       )
       .join("");
   }
@@ -64,7 +72,7 @@ function latestUserNonce(messages: unknown): string | undefined {
   if (!Array.isArray(messages)) {
     return undefined;
   }
-  for (const message of [...messages].reverse()) {
+  for (const message of messages.toReversed()) {
     if (!message || typeof message !== "object" || (message as JsonObject).role !== "user") {
       continue;
     }
@@ -95,60 +103,64 @@ export type MockModel = {
  */
 export async function startMockModel(options: { media?: string } = {}): Promise<MockModel> {
   const requests: JsonObject[] = [];
-  const server = createServer(async (req, res) => {
-    const body = await readBody(req);
-    if (req.url?.endsWith("/models")) {
+  const server = createServer(
+    serveAsync(async (req, res) => {
+      const body = await readBody(req);
+      if (req.url?.endsWith("/models")) {
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ object: "list", data: [{ id: "mock-model", object: "model" }] }));
+        return;
+      }
+      let parsed: JsonObject = {};
+      try {
+        parsed = JSON.parse(body || "{}") as JsonObject;
+      } catch {
+        // Leave parsed empty; the reply below still completes the turn.
+      }
+      requests.push(parsed);
+      const nonce = latestUserNonce(parsed.messages) ?? "no-nonce";
+      const reply =
+        options.media && nonce.startsWith("gme2e-media-")
+          ? `pong ${nonce}\nMEDIA:${options.media}`
+          : `pong ${nonce}`;
+      const base = {
+        id: "chatcmpl-mock",
+        created: Math.floor(Date.now() / 1000),
+        model: stringField(parsed, "model") || "mock-model",
+      };
+      const usage = { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 };
+      if (parsed.stream) {
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        const chunk = (payload: JsonObject) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        chunk({
+          ...base,
+          object: "chat.completion.chunk",
+          choices: [
+            { index: 0, delta: { role: "assistant", content: reply }, finish_reason: null },
+          ],
+        });
+        chunk({
+          ...base,
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          usage,
+        });
+        res.end("data: [DONE]\n\n");
+        return;
+      }
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ object: "list", data: [{ id: "mock-model", object: "model" }] }));
-      return;
-    }
-    let parsed: JsonObject = {};
-    try {
-      parsed = JSON.parse(body || "{}") as JsonObject;
-    } catch {
-      // Leave parsed empty; the reply below still completes the turn.
-    }
-    requests.push(parsed);
-    const nonce = latestUserNonce(parsed.messages) ?? "no-nonce";
-    const reply =
-      options.media && nonce.startsWith("gme2e-media-")
-        ? `pong ${nonce}\nMEDIA:${options.media}`
-        : `pong ${nonce}`;
-    const base = {
-      id: "chatcmpl-mock",
-      created: Math.floor(Date.now() / 1000),
-      model: String(parsed.model ?? "mock-model"),
-    };
-    const usage = { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 };
-    if (parsed.stream) {
-      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-      const chunk = (payload: JsonObject) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-      chunk({
-        ...base,
-        object: "chat.completion.chunk",
-        choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }],
-      });
-      chunk({
-        ...base,
-        object: "chat.completion.chunk",
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-        usage,
-      });
-      res.end("data: [DONE]\n\n");
-      return;
-    }
-    res.setHeader("content-type", "application/json");
-    res.end(
-      JSON.stringify({
-        ...base,
-        object: "chat.completion",
-        choices: [
-          { index: 0, message: { role: "assistant", content: reply }, finish_reason: "stop" },
-        ],
-        usage,
-      }),
-    );
-  });
+      res.end(
+        JSON.stringify({
+          ...base,
+          object: "chat.completion",
+          choices: [
+            { index: 0, message: { role: "assistant", content: reply }, finish_reason: "stop" },
+          ],
+          usage,
+        }),
+      );
+    }),
+  );
   const port = await listen(server);
   return { baseUrl: `http://127.0.0.1:${port}/v1`, requests, close: () => close(server) };
 }
@@ -170,46 +182,48 @@ export const PNG_BYTES = Buffer.from(
 export async function startFakeGroupMe(): Promise<FakeGroupMe> {
   const posts: JsonObject[] = [];
   const uploads: FakeGroupMe["uploads"] = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === "POST" && req.url === "/pictures") {
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) {
-        chunks.push(chunk as Buffer);
+  const server = createServer(
+    serveAsync(async (req, res) => {
+      if (req.method === "POST" && req.url === "/pictures") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk as Buffer);
+        }
+        uploads.push({
+          contentType: req.headers["content-type"],
+          bytes: Buffer.concat(chunks).length,
+          accessToken: req.headers["x-access-token"] as string | undefined,
+        });
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/1x1.png.fake" } }));
+        return;
       }
-      uploads.push({
-        contentType: req.headers["content-type"],
-        bytes: Buffer.concat(chunks).length,
-        accessToken: req.headers["x-access-token"] as string | undefined,
-      });
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/1x1.png.fake" } }));
-      return;
-    }
-    const body = await readBody(req);
-    if (req.method === "POST" && req.url === "/v3/bots/post") {
-      posts.push(JSON.parse(body) as JsonObject);
-      res.statusCode = 202;
+      const body = await readBody(req);
+      if (req.method === "POST" && req.url === "/v3/bots/post") {
+        posts.push(JSON.parse(body) as JsonObject);
+        res.statusCode = 202;
+        res.end();
+        return;
+      }
+      // Group feed used by the plugin to confirm the id of a bot post.
+      if (req.method === "GET" && /^\/v3\/groups\/[^/]+\/messages/.test(req.url ?? "")) {
+        const messages = posts
+          .map((post, index) => ({
+            id: `fake-${index + 1}`,
+            sender_type: "bot",
+            created_at: Math.floor(Date.now() / 1000),
+            text: typeof post.text === "string" && post.text ? post.text : null,
+            attachments: post.picture_url ? [{ type: "image", url: post.picture_url }] : [],
+          }))
+          .toReversed();
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ response: { count: messages.length, messages } }));
+        return;
+      }
+      res.statusCode = 404;
       res.end();
-      return;
-    }
-    // Group feed used by the plugin to confirm the id of a bot post.
-    if (req.method === "GET" && /^\/v3\/groups\/[^/]+\/messages/.test(req.url ?? "")) {
-      const messages = posts
-        .map((post, index) => ({
-          id: `fake-${index + 1}`,
-          sender_type: "bot",
-          created_at: Math.floor(Date.now() / 1000),
-          text: typeof post.text === "string" && post.text ? post.text : null,
-          attachments: post.picture_url ? [{ type: "image", url: post.picture_url }] : [],
-        }))
-        .reverse();
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ response: { count: messages.length, messages } }));
-      return;
-    }
-    res.statusCode = 404;
-    res.end();
-  });
+    }),
+  );
   const port = await listen(server);
   return { baseUrl: `http://127.0.0.1:${port}`, posts, uploads, close: () => close(server) };
 }
@@ -346,7 +360,9 @@ export async function startGateway(params: {
     if (child.exitCode !== null || child.pid === undefined) {
       return;
     }
-    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    const exited = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+    });
     // The gateway forks helpers (spawn broker, workers); signal the whole group.
     process.kill(-child.pid, "SIGTERM");
     const timer = setTimeout(() => {
@@ -369,7 +385,9 @@ export async function startGateway(params: {
       await stop();
       throw new Error(`gateway did not register the GroupMe webhook in time:\n${output}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 250);
+    });
   }
 
   return { port: params.port, output: () => output, stop };
@@ -418,7 +436,9 @@ export async function waitFor<T>(
     if (value !== undefined) {
       return value;
     }
-    await new Promise((resolve) => setTimeout(resolve, params.intervalMs ?? 500));
+    await new Promise((resolve) => {
+      setTimeout(resolve, params.intervalMs ?? 500);
+    });
   }
   throw new Error(`timed out waiting for ${params.description}`);
 }

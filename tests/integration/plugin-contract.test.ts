@@ -50,7 +50,7 @@ describe("built OpenClaw plugin contract", () => {
         description: "GroupMe channel plugin",
       }),
     );
-    expect(entry.register).toBeTypeOf("function");
+    expect(typeof entry.register).toBe("function");
     expect(entry.setChannelRuntime).toBeTypeOf("function");
     expect(entry.channelPlugin.id).toBe("groupme");
     // Not the legacy bundled-channel entry shape.
@@ -85,7 +85,7 @@ describe("built OpenClaw plugin contract", () => {
     expect(plugin.setupContract?.kind).toBe("channel-owned");
     expect(plugin.setupContract?.validateInput).toBeTypeOf("function");
     expect(plugin.setupContract?.applyAccountConfig).toBeTypeOf("function");
-    expect(plugin.configSchema?.runtime?.safeParse).toBeTypeOf("function");
+    expect(typeof plugin.configSchema?.runtime?.safeParse).toBe("function");
     expect(plugin.gateway?.startAccount).toBeTypeOf("function");
     expect(plugin.outbound?.sendText).toBeTypeOf("function");
     expect(plugin.outbound?.sendMedia).toBeTypeOf("function");

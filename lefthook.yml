@@ -1,8 +1,12 @@
 pre-commit:
   commands:
-    biome:
-      glob: "*.{ts,js,json,jsonc,md,yml,yaml}"
-      run: npx biome check --write --files-ignore-unknown=true {staged_files}
+    oxlint:
+      glob: "*.{ts,js,mjs,cjs}"
+      run: npx oxlint --type-aware --fix {staged_files}
+      stage_fixed: true
+    oxfmt:
+      glob: "*.{ts,js,mjs,cjs,jsonc,md,yml,yaml}"
+      run: npx oxfmt --write --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
 
 commit-msg:

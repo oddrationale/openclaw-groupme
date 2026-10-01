@@ -43,7 +43,7 @@ describeLive("GroupMe API live smoke", () => {
     await expectOk(groupResponse);
 
     const groupPayload = (await groupResponse.json()) as { response?: { id?: unknown } };
-    expect(String(groupPayload.response?.id ?? "")).toBe(groupId);
+    expect(groupPayload.response?.id).toBe(groupId);
 
     const runId =
       process.env.GITHUB_RUN_ID?.trim() ||

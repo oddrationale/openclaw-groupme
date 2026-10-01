@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGroupMeWebhookHandler } from "../../src/monitor.js";
 import { setGroupMeRuntime } from "../../src/runtime.js";
 import type { CoreConfig, ResolvedGroupMeAccount } from "../../src/types.js";
+import { requestJson, requestUrl } from "../helpers/fetch.js";
 import { createInboundCoreMock, deliverThroughCore, lastContext } from "../unit/helpers/inbound.js";
 import { type NodeHandlerServer, startNodeHandlerServer } from "./helpers/http.js";
 
@@ -234,8 +235,8 @@ describe("GroupMe webhook flow integration", () => {
     const realFetch = globalThis.fetch;
     const botPosts: unknown[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      if (String(input) === "https://api.groupme.com/v3/bots/post") {
-        botPosts.push(JSON.parse(String(init?.body)));
+      if (requestUrl(input) === "https://api.groupme.com/v3/bots/post") {
+        botPosts.push(requestJson(init));
         return new Response("", { status: 202, statusText: "Accepted" });
       }
       return realFetch(input, init);

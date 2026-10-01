@@ -297,7 +297,7 @@ export function createGroupMeWebhookHandler(
         historyLimit,
       }),
     )
-      .catch((err) => {
+      .catch((err: unknown) => {
         params.runtime.error?.(`groupme: inbound processing failed: ${String(err)}`);
       })
       .finally(() => {

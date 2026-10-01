@@ -31,7 +31,7 @@ function requirePluginMember<K extends keyof typeof groupmePlugin>(
 ): NonNullable<(typeof groupmePlugin)[K]> {
   const value = groupmePlugin[key];
   if (!value) {
-    throw new Error(`expected groupmePlugin.${String(key)} to be defined`);
+    throw new Error(`expected groupmePlugin.${key} to be defined`);
   }
   return value as NonNullable<(typeof groupmePlugin)[K]>;
 }
@@ -542,7 +542,7 @@ describe("groupmePlugin status and gateway", () => {
   });
 
   it("marks secret input objects as configured in account snapshots", async () => {
-    const snapshot = await buildAccountSnapshot({
+    const snapshot = buildAccountSnapshot({
       account: account({
         botId: "",
         accessToken: "",
@@ -672,7 +672,9 @@ describe("groupmePlugin status and gateway", () => {
     expect(registerPluginHttpRouteMock).not.toHaveBeenCalled();
 
     // Resolving early would make the gateway restart the account in a loop.
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
     expect(settled).toBe(false);
 
     abortController.abort();

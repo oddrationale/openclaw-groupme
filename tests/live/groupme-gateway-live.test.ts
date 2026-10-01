@@ -49,10 +49,11 @@ type GroupMeMessage = {
 async function groupmeRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const url = new URL(`${GROUPME_API}${path}`);
   url.searchParams.set("token", readSecret("GROUPME_LIVE_ACCESS_TOKEN"));
-  const response = await fetch(url, {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
+  const headers = new Headers(init?.headers);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+  const response = await fetch(url, { ...init, headers });
   if (!response.ok) {
     throw new Error(`GroupMe ${init?.method ?? "GET"} ${path} failed: ${response.status}`);
   }

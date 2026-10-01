@@ -24,7 +24,7 @@ manifest.channelConfigs = {
 const next = `${JSON.stringify(manifest, null, 2)}\n`;
 
 if (process.argv.includes("--check")) {
-  // Compare parsed JSON so Biome's formatting of the committed file does not matter.
+  // Compare parsed JSON so whitespace in the committed file does not matter.
   const committed = JSON.stringify(JSON.parse(readFileSync(manifestPath, "utf8")));
   if (committed !== JSON.stringify(manifest)) {
     console.error("openclaw.plugin.json is out of date; run `npm run manifest:sync`.");

@@ -8,8 +8,8 @@ import { groupmeSetupFields } from "../../src/setup-surface.js";
 
 const repoRoot = join(import.meta.dirname, "../..");
 
-function readJson<T>(file: string): T {
-  return JSON.parse(readFileSync(join(repoRoot, file), "utf8")) as T;
+function readJson(file: string): unknown {
+  return JSON.parse(readFileSync(join(repoRoot, file), "utf8"));
 }
 
 type PackageJson = {
@@ -31,12 +31,13 @@ type PluginManifest = {
 // without loading plugin code. These guards keep it in lockstep with the runtime
 // definitions it mirrors.
 describe("package.json#openclaw.channel", () => {
-  const pkg = readJson<PackageJson>("package.json");
+  const pkg = readJson("package.json") as PackageJson;
 
   it("mirrors groupmeSetupFields in declaration order", () => {
-    const expected = Object.entries(groupmeSetupFields).map(([key, field]) => ({ key, ...field }));
-    // Round-trip through JSON so readonly `as const` literals compare as plain data.
-    expect(pkg.openclaw.channel.setup.fields).toEqual(JSON.parse(JSON.stringify(expected)));
+    const expected = Object.entries(groupmeSetupFields).map(([key, field]) =>
+      Object.assign({ key }, field),
+    );
+    expect(pkg.openclaw.channel.setup.fields).toEqual(expected);
   });
 
   it("mirrors the runtime channel meta", () => {
@@ -46,7 +47,7 @@ describe("package.json#openclaw.channel", () => {
 });
 
 describe("openclaw.plugin.json", () => {
-  const manifest = readJson<PluginManifest>("openclaw.plugin.json");
+  const manifest = readJson("openclaw.plugin.json") as PluginManifest;
 
   it("declares the groupme channel", () => {
     expect(manifest.id).toBe("groupme");
@@ -60,12 +61,8 @@ describe("openclaw.plugin.json", () => {
     });
     const committed = manifest.channelConfigs.groupme;
 
-    expect(committed?.schema, "run `npm run manifest:sync`").toEqual(
-      JSON.parse(JSON.stringify(schema)),
-    );
-    expect(committed?.uiHints, "run `npm run manifest:sync`").toEqual(
-      JSON.parse(JSON.stringify(uiHints)),
-    );
+    expect(committed?.schema, "run `npm run manifest:sync`").toEqual(structuredClone(schema));
+    expect(committed?.uiHints, "run `npm run manifest:sync`").toEqual(structuredClone(uiHints));
   });
 
   it("applies every account ui hint to named accounts too", () => {

@@ -92,7 +92,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     });
 
     const { prompter } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("oddclaw")
       .mockResolvedValueOnce("access-token")
       .mockResolvedValueOnce("https://bot.example.com/");
@@ -143,9 +143,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     fetchGroupsMock.mockRejectedValueOnce(new Error("401"));
 
     const { prompter, progressSpins } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce("openclaw")
-      .mockResolvedValueOnce("bad-token");
+    vi.mocked(prompter.text).mockResolvedValueOnce("openclaw").mockResolvedValueOnce("bad-token");
 
     await expect(
       groupmeOnboardingAdapter.configure({
@@ -170,7 +168,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     fetchGroupsMock.mockResolvedValueOnce([]);
 
     const { prompter, progressSpins } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("openclaw")
       .mockResolvedValueOnce("access-token");
 
@@ -198,7 +196,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     createBotMock.mockRejectedValueOnce(new Error("callback rejected"));
 
     const { prompter, progressSpins } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("")
       .mockResolvedValueOnce("access-token")
       .mockResolvedValueOnce("https://bot.example.com/path");
@@ -237,7 +235,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     });
 
     const { prompter } = makePrompter();
-    const textMock = prompter.text as ReturnType<typeof vi.fn>;
+    const textMock = vi.mocked(prompter.text);
     textMock
       .mockResolvedValueOnce("openclaw")
       .mockImplementationOnce(
@@ -291,7 +289,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     });
 
     const { prompter } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("openclaw")
       .mockResolvedValueOnce("access-token")
       .mockResolvedValueOnce("bot.example.com");
@@ -329,7 +327,7 @@ describe("groupmeOnboardingAdapter.configure", () => {
     });
 
     const { prompter } = makePrompter();
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("")
       .mockResolvedValueOnce("access-token")
       .mockResolvedValueOnce("bot.example.com");
@@ -406,7 +404,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
 
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("rotate_token");
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("new-token");
+    vi.mocked(prompter.text).mockResolvedValueOnce("new-token");
 
     const result = await configureWhenConfigured(configureWhenConfiguredCtx(prompter));
 
@@ -424,7 +422,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
 
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("rotate_token");
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("bad-token");
+    vi.mocked(prompter.text).mockResolvedValueOnce("bad-token");
 
     await expect(configureWhenConfigured(configureWhenConfiguredCtx(prompter))).rejects.toThrow(
       /could not validate access token/i,
@@ -436,7 +434,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
 
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("rotate_token");
-    (prompter.text as ReturnType<typeof vi.fn>).mockImplementationOnce(
+    vi.mocked(prompter.text).mockImplementationOnce(
       async (params: { validate?: (value: string) => string | undefined }) => {
         expect(params.validate?.("")).toBe("Access token is required");
         return "new-token";
@@ -543,7 +541,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
       .mockResolvedValueOnce("change_group")
       .mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("bot-for-g2");
+    vi.mocked(prompter.text).mockResolvedValueOnce("bot-for-g2");
 
     const result = await configureWhenConfigured(configureWhenConfiguredCtx(prompter));
 
@@ -563,7 +561,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
       .mockResolvedValueOnce("change_group")
       .mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
-    (prompter.text as ReturnType<typeof vi.fn>).mockImplementationOnce(
+    vi.mocked(prompter.text).mockImplementationOnce(
       async (params: { validate?: (value: string) => string | undefined }) => {
         expect(params.validate?.("")).toBe("Bot ID is required");
         return "bot-for-g2";
@@ -607,9 +605,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
       .mockResolvedValueOnce("change_group")
       .mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      "https://prompted.example.com/",
-    );
+    vi.mocked(prompter.text).mockResolvedValueOnce("https://prompted.example.com/");
 
     const result = await configureWhenConfigured(configureWhenConfiguredCtx(prompter, noDomainCfg));
 
@@ -658,7 +654,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
       .mockResolvedValueOnce("change_group")
       .mockResolvedValueOnce("g2");
     (prompter.confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
-    (prompter.text as ReturnType<typeof vi.fn>).mockImplementationOnce(
+    vi.mocked(prompter.text).mockImplementationOnce(
       async (params: { validate?: (value: string) => string | undefined }) => {
         expect(params.validate?.("")).toBe("Public domain is required");
         expect(params.validate?.("https://")).toBe("Public domain must be a valid host");
@@ -811,9 +807,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
   it("updates public domain", async () => {
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("update_domain");
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      "https://new-domain.example.com/",
-    );
+    vi.mocked(prompter.text).mockResolvedValueOnce("https://new-domain.example.com/");
 
     const result = await configureWhenConfigured(configureWhenConfiguredCtx(prompter));
 
@@ -826,7 +820,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
   it("rejects malformed public domain returned by a custom prompter", async () => {
     const { prompter } = makePrompter();
     (prompter.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("update_domain");
-    (prompter.text as ReturnType<typeof vi.fn>).mockResolvedValueOnce("https://broken host/path");
+    vi.mocked(prompter.text).mockResolvedValueOnce("https://broken host/path");
 
     await expect(configureWhenConfigured(configureWhenConfiguredCtx(prompter))).rejects.toThrow(
       "Invalid public domain",
@@ -835,7 +829,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
 
   it("rejects scheme-only input in update_domain via validation", async () => {
     const { prompter } = makePrompter();
-    const textMock = prompter.text as ReturnType<typeof vi.fn>;
+    const textMock = vi.mocked(prompter.text);
 
     // First call: returns "https://" which should fail validation, then returns a valid domain
     textMock.mockImplementationOnce(
@@ -872,7 +866,7 @@ describe("groupmeOnboardingAdapter.configureWhenConfigured", () => {
     (prompter.select as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce("full_setup")
       .mockResolvedValueOnce("g1");
-    (prompter.text as ReturnType<typeof vi.fn>)
+    vi.mocked(prompter.text)
       .mockResolvedValueOnce("openclaw")
       .mockResolvedValueOnce("fresh-token")
       .mockResolvedValueOnce("https://new.example.com/");
