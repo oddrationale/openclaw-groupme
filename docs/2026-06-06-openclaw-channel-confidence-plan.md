@@ -281,7 +281,7 @@ await deliverOutboundPayloads({
   channel: "groupme",
   to: process.env.GROUPME_LIVE_GROUP_ID,
   payloads: [{ text: `openclaw-groupme plugin outbound live ${runId}` }],
-  skipQueue: true
+  skipQueue: true,
 });
 ```
 
@@ -300,7 +300,7 @@ await groupmePlugin.outbound.sendText({
   cfg,
   to: process.env.GROUPME_LIVE_GROUP_ID,
   text: `openclaw-groupme plugin outbound live ${runId}`,
-  accountId: "default"
+  accountId: "default",
 });
 ```
 

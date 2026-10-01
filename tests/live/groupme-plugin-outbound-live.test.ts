@@ -55,7 +55,9 @@ async function waitForGroupMessage(
         return match;
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2_000);
+    });
   }
   throw new Error(`message not found in group ${groupId}: ${text}`);
 }

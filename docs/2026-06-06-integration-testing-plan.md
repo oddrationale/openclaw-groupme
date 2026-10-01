@@ -222,11 +222,9 @@ Implementation options:
 - Add internal base URL overrides:
 
 ```ts
-const GROUPME_API_BASE =
-  process.env.GROUPME_API_BASE_URL ?? "https://api.groupme.com/v3";
+const GROUPME_API_BASE = process.env.GROUPME_API_BASE_URL ?? "https://api.groupme.com/v3";
 
-const GROUPME_IMAGE_SERVICE =
-  process.env.GROUPME_IMAGE_SERVICE_URL ?? "https://image.groupme.com";
+const GROUPME_IMAGE_SERVICE = process.env.GROUPME_IMAGE_SERVICE_URL ?? "https://image.groupme.com";
 ```
 
 - Start local fake HTTP servers for:

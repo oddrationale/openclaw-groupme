@@ -95,8 +95,9 @@ openclaw channels add
 **5.** The wizard fetches your groups from GroupMe. **Select the group** you want the bot to live in.
 
 **6.** Choose whether to **require an @mention**:
-   - **Yes** — The bot only responds when someone mentions it by name (e.g., "hey @openclaw, what's the weather?"). This is great for groups with multiple people where you don't want the bot jumping into every conversation.
-   - **No** — The bot responds to every message in the group. Perfect if you're the only human in the group and want a direct chat experience.
+
+- **Yes** — The bot only responds when someone mentions it by name (e.g., "hey @openclaw, what's the weather?"). This is great for groups with multiple people where you don't want the bot jumping into every conversation.
+- **No** — The bot responds to every message in the group. Perfect if you're the only human in the group and want a direct chat experience.
 
 **7.** Enter the **public domain** that will host your callback URL. This should be the domain name (or public IP) that can reach your OpenClaw gateway — for example, `bot.example.com`. The wizard generates a secure callback URL with a random path and secret token, then registers the bot with GroupMe.
 
@@ -138,17 +139,17 @@ openclaw channels add --channel groupme \
   --webhook-path "/groupme/callback"
 ```
 
-| Flag | Maps to config | Description |
-| ---- | -------------- | ----------- |
-| `--bot-id` | `botId` | Your GroupMe Bot ID (`--token` is accepted as an alias) |
-| `--access-token` | `accessToken` | Your GroupMe access token |
-| `--callback-token` | `callbackToken` | Shared secret GroupMe sends as `?k=` on the callback URL |
-| `--group-id` | `groupId` | The GroupMe group the bot belongs to |
-| `--bot-name` | `botName` | Bot name used for mention detection |
-| `--webhook-url` | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Full webhook URL; the path and `k` token are extracted |
-| `--webhook-path` | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Relative webhook route path |
-| `--account` | account ID | Named account identifier |
-| `--name` | `name` | Display name for the account |
+| Flag               | Maps to config                                          | Description                                              |
+| ------------------ | ------------------------------------------------------- | -------------------------------------------------------- |
+| `--bot-id`         | `botId`                                                 | Your GroupMe Bot ID (`--token` is accepted as an alias)  |
+| `--access-token`   | `accessToken`                                           | Your GroupMe access token                                |
+| `--callback-token` | `callbackToken`                                         | Shared secret GroupMe sends as `?k=` on the callback URL |
+| `--group-id`       | `groupId`                                               | The GroupMe group the bot belongs to                     |
+| `--bot-name`       | `botName`                                               | Bot name used for mention detection                      |
+| `--webhook-url`    | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Full webhook URL; the path and `k` token are extracted   |
+| `--webhook-path`   | `webhookPath` (+ `callbackToken` if a `?k=` is present) | Relative webhook route path                              |
+| `--account`        | account ID                                              | Named account identifier                                 |
+| `--name`           | `name`                                                  | Display name for the account                             |
 
 > **Note:** The non-interactive CLI does not set `requireMention`, `publicDomain`, or `allowFrom`. Add those manually afterward, or use the interactive wizard to generate complete webhook settings. A `?k=<token>` on `--webhook-url`/`--webhook-path` is parsed into `callbackToken` when `--callback-token` is not given.
 
@@ -278,11 +279,7 @@ GroupMe bots don't support native @mention entities, so this plugin uses text ma
   "channels": {
     "groupme": {
       "botName": "openclaw",
-      "mentionPatterns": [
-        "@openclaw",
-        "hey openclaw",
-        "oc"
-      ]
+      "mentionPatterns": ["@openclaw", "hey openclaw", "oc"]
     }
   }
 }
@@ -345,55 +342,55 @@ You only need a `security` block if you want to override the defaults. Just incl
 
 #### Replay Protection
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.replay.ttlSeconds` | number | `600` | How long (in seconds) to remember message IDs for deduplication |
-| `security.replay.maxEntries` | number | `10000` | Maximum number of entries in the replay cache |
+| Field                        | Type   | Default | Description                                                     |
+| ---------------------------- | ------ | ------- | --------------------------------------------------------------- |
+| `security.replay.ttlSeconds` | number | `600`   | How long (in seconds) to remember message IDs for deduplication |
+| `security.replay.maxEntries` | number | `10000` | Maximum number of entries in the replay cache                   |
 
 #### Rate Limiting
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.rateLimit.windowMs` | number | `60000` | Sliding window size in milliseconds |
-| `security.rateLimit.maxRequestsPerIp` | number | `120` | Max webhook requests per IP per window |
-| `security.rateLimit.maxRequestsPerSender` | number | `60` | Max webhook requests per GroupMe sender per window |
-| `security.rateLimit.maxConcurrent` | number | `8` | Max concurrent inbound message executions |
+| Field                                     | Type   | Default | Description                                        |
+| ----------------------------------------- | ------ | ------- | -------------------------------------------------- |
+| `security.rateLimit.windowMs`             | number | `60000` | Sliding window size in milliseconds                |
+| `security.rateLimit.maxRequestsPerIp`     | number | `120`   | Max webhook requests per IP per window             |
+| `security.rateLimit.maxRequestsPerSender` | number | `60`    | Max webhook requests per GroupMe sender per window |
+| `security.rateLimit.maxConcurrent`        | number | `8`     | Max concurrent inbound message executions          |
 
 #### Media
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.media.allowPrivateNetworks` | boolean | `false` | Allow fetching media from private/internal networks |
-| `security.media.maxDownloadBytes` | number | `15728640` | Max download size for outbound media (bytes) |
-| `security.media.requestTimeoutMs` | number | `10000` | Timeout for outbound media fetch requests (ms) |
-| `security.media.allowedMimePrefixes` | string[] | `["image/"]` | Allowed MIME type prefixes for outbound media |
+| Field                                 | Type     | Default      | Description                                         |
+| ------------------------------------- | -------- | ------------ | --------------------------------------------------- |
+| `security.media.allowPrivateNetworks` | boolean  | `false`      | Allow fetching media from private/internal networks |
+| `security.media.maxDownloadBytes`     | number   | `15728640`   | Max download size for outbound media (bytes)        |
+| `security.media.requestTimeoutMs`     | number   | `10000`      | Timeout for outbound media fetch requests (ms)      |
+| `security.media.allowedMimePrefixes`  | string[] | `["image/"]` | Allowed MIME type prefixes for outbound media       |
 
 > **Inbound vs. outbound media limits:** the `security.media.*` settings above govern **outbound** media — images the bot downloads from a URL and re-uploads to GroupMe. The separate top-level `mediaMaxMb` field governs **inbound** media the OpenClaw runtime fetches from GroupMe callbacks. They are independent knobs.
 
 #### Logging
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.logging.redactSecrets` | boolean | `true` | Redact callback secrets in logs and status output |
-| `security.logging.logRejectedRequests` | boolean | `true` | Log rejected webhook requests |
+| Field                                  | Type    | Default | Description                                       |
+| -------------------------------------- | ------- | ------- | ------------------------------------------------- |
+| `security.logging.redactSecrets`       | boolean | `true`  | Redact callback secrets in logs and status output |
+| `security.logging.logRejectedRequests` | boolean | `true`  | Log rejected webhook requests                     |
 
 #### Command Bypass
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.commandBypass.requireAllowFrom` | boolean | `true` | Require sender to be in `allowFrom` list to use control commands. Setting `false` lets any group member run them. |
-| `security.commandBypass.requireMentionForCommands` | boolean | `false` | Require mention even for control commands |
+| Field                                              | Type    | Default | Description                                                                                                       |
+| -------------------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `security.commandBypass.requireAllowFrom`          | boolean | `true`  | Require sender to be in `allowFrom` list to use control commands. Setting `false` lets any group member run them. |
+| `security.commandBypass.requireMentionForCommands` | boolean | `false` | Require mention even for control commands                                                                         |
 
 #### Proxy Validation
 
 Include a `proxy` block to enable trusted-proxy validation. This is useful when your gateway sits behind a reverse proxy and you want to validate forwarded headers.
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `security.proxy.trustedProxyCidrs` | string[] | `[]` | Only trust `X-Forwarded-*` headers from these CIDRs |
-| `security.proxy.allowedPublicHosts` | string[] | `[]` | Allowed values for the effective public host |
-| `security.proxy.requireHttpsProto` | boolean | `false` | Require the effective protocol to be HTTPS |
-| `security.proxy.rejectStatus` | number | `403` | HTTP status for proxy-policy rejections (`400`, `403`, or `404`) |
+| Field                               | Type     | Default | Description                                                      |
+| ----------------------------------- | -------- | ------- | ---------------------------------------------------------------- |
+| `security.proxy.trustedProxyCidrs`  | string[] | `[]`    | Only trust `X-Forwarded-*` headers from these CIDRs              |
+| `security.proxy.allowedPublicHosts` | string[] | `[]`    | Allowed values for the effective public host                     |
+| `security.proxy.requireHttpsProto`  | boolean  | `false` | Require the effective protocol to be HTTPS                       |
+| `security.proxy.rejectStatus`       | number   | `403`   | HTTP status for proxy-policy rejections (`400`, `403`, or `404`) |
 
 ## Secrets
 
@@ -430,30 +427,30 @@ openclaw secrets reload              # re-resolve refs into the runtime snapshot
 
 ## Config Reference
 
-| Field | Type | Default | Description |
-| ----- | ---- | ------- | ----------- |
-| `enabled` | boolean | `true` | Whether the GroupMe channel/account is active; only an explicit `false` disables it. An account still needs a `botId` before it will actually run. |
-| `name` | string | — | Display name for the account |
-| `botId` | secret input | — | GroupMe Bot ID |
-| `accessToken` | secret input | — | GroupMe access token (required for image uploads and the interactive wizard) |
-| `callbackToken` | secret input | — | Secret expected in the inbound `k` query parameter |
-| `botName` | string | — | Bot display name, used for mention detection |
-| `groupId` | string | — | Expected GroupMe `group_id` for inbound binding |
-| `publicDomain` | string | — | Public domain where the gateway is reachable (e.g., `bot.example.com`) |
-| `webhookPath` | string | `/groupme` | Relative webhook route path |
-| `requireMention` | boolean | `true` | Only respond when mentioned by name |
-| `historyLimit` | number | `20` | Max buffered messages per group (when `requireMention: true`); `0` disables buffering |
-| `mentionPatterns` | string[] | — | Custom regex patterns for mention detection |
-| `allowFrom` | array | — | Sender allowlist (`"*"` allows everyone) |
-| `textChunkLimit` | number | `1000` | Max characters per outbound text chunk (capped at GroupMe's 1000-char limit) |
-| `responsePrefix` | string | — | Text prepended to each outbound reply |
-| `blockStreaming` | boolean | unset (OpenClaw default) | Override block streaming for this channel. When unset, OpenClaw's dispatcher default applies; set `true` to stream completed assistant blocks as separate messages, or `false` to send a single final reply |
-| `blockStreamingCoalesce` | object | — | Fine-tunes how streamed blocks are coalesced (see OpenClaw docs) |
-| `markdown` | object | — | Markdown rendering overrides for outbound messages |
-| `mediaMaxMb` | number | — | Max size (MB) for **inbound** media the OpenClaw runtime fetches from GroupMe. Distinct from `security.media.maxDownloadBytes`, which caps **outbound** media the bot downloads before re-uploading. |
-| `security` | object | — | Security overrides (see [Security](#security) section above) |
-| `accounts` | object | — | Named accounts (`accounts.<id>`), each accepting the fields above |
-| `defaultAccount` | string | — | Which named account is the default for outbound routing |
+| Field                    | Type         | Default                  | Description                                                                                                                                                                                                 |
+| ------------------------ | ------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                | boolean      | `true`                   | Whether the GroupMe channel/account is active; only an explicit `false` disables it. An account still needs a `botId` before it will actually run.                                                          |
+| `name`                   | string       | —                        | Display name for the account                                                                                                                                                                                |
+| `botId`                  | secret input | —                        | GroupMe Bot ID                                                                                                                                                                                              |
+| `accessToken`            | secret input | —                        | GroupMe access token (required for image uploads and the interactive wizard)                                                                                                                                |
+| `callbackToken`          | secret input | —                        | Secret expected in the inbound `k` query parameter                                                                                                                                                          |
+| `botName`                | string       | —                        | Bot display name, used for mention detection                                                                                                                                                                |
+| `groupId`                | string       | —                        | Expected GroupMe `group_id` for inbound binding                                                                                                                                                             |
+| `publicDomain`           | string       | —                        | Public domain where the gateway is reachable (e.g., `bot.example.com`)                                                                                                                                      |
+| `webhookPath`            | string       | `/groupme`               | Relative webhook route path                                                                                                                                                                                 |
+| `requireMention`         | boolean      | `true`                   | Only respond when mentioned by name                                                                                                                                                                         |
+| `historyLimit`           | number       | `20`                     | Max buffered messages per group (when `requireMention: true`); `0` disables buffering                                                                                                                       |
+| `mentionPatterns`        | string[]     | —                        | Custom regex patterns for mention detection                                                                                                                                                                 |
+| `allowFrom`              | array        | —                        | Sender allowlist (`"*"` allows everyone)                                                                                                                                                                    |
+| `textChunkLimit`         | number       | `1000`                   | Max characters per outbound text chunk (capped at GroupMe's 1000-char limit)                                                                                                                                |
+| `responsePrefix`         | string       | —                        | Text prepended to each outbound reply                                                                                                                                                                       |
+| `blockStreaming`         | boolean      | unset (OpenClaw default) | Override block streaming for this channel. When unset, OpenClaw's dispatcher default applies; set `true` to stream completed assistant blocks as separate messages, or `false` to send a single final reply |
+| `blockStreamingCoalesce` | object       | —                        | Fine-tunes how streamed blocks are coalesced (see OpenClaw docs)                                                                                                                                            |
+| `markdown`               | object       | —                        | Markdown rendering overrides for outbound messages                                                                                                                                                          |
+| `mediaMaxMb`             | number       | —                        | Max size (MB) for **inbound** media the OpenClaw runtime fetches from GroupMe. Distinct from `security.media.maxDownloadBytes`, which caps **outbound** media the bot downloads before re-uploading.        |
+| `security`               | object       | —                        | Security overrides (see [Security](#security) section above)                                                                                                                                                |
+| `accounts`               | object       | —                        | Named accounts (`accounts.<id>`), each accepting the fields above                                                                                                                                           |
+| `defaultAccount`         | string       | —                        | Which named account is the default for outbound routing                                                                                                                                                     |
 
 ## Webhook URL Format
 

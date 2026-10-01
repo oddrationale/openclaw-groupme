@@ -18,7 +18,7 @@ suite passes 18/19 — the lone failure is `openclaw-cli-smoke` requiring Node �
 
 This is a **well-architected, genuinely well-tested plugin**. The modernization to
 OpenClaw 2026.6.1 landed cleanly: the module boundaries are crisp, the security
-pipeline is thoughtful and fails closed, and the tests overwhelmingly exercise *real*
+pipeline is thoughtful and fails closed, and the tests overwhelmingly exercise _real_
 behavior (real HTTP servers, real `npm pack`/install, the real OpenClaw CLI) rather than
 mirror the implementation. The codebase is in good shape.
 
@@ -37,13 +37,13 @@ and a couple of **defensive-hardening gaps**. None are release blockers.
 
 All run locally against `openclaw@2026.6.1` with deps installed via `npm ci`.
 
-| Check | Command | Result |
-| ----- | ------- | ------ |
-| Type check | `npm run typecheck` | ✅ pass |
-| Unused files/deps | `npm run knip` | ✅ pass (caveat below) |
-| Unit tests | `npm run test:unit` | ✅ 221 passed (20 files) |
-| Integration tests | `npm run test:integration` | ⚠️ 18/19 passed — the 1 failure is **environmental only** |
-| Build | (via integration `buildPackage()`) | ✅ produced `dist/` |
+| Check             | Command                            | Result                                                    |
+| ----------------- | ---------------------------------- | --------------------------------------------------------- |
+| Type check        | `npm run typecheck`                | ✅ pass                                                   |
+| Unused files/deps | `npm run knip`                     | ✅ pass (caveat below)                                    |
+| Unit tests        | `npm run test:unit`                | ✅ 221 passed (20 files)                                  |
+| Integration tests | `npm run test:integration`         | ⚠️ 18/19 passed — the 1 failure is **environmental only** |
+| Build             | (via integration `buildPackage()`) | ✅ produced `dist/`                                       |
 
 The single integration failure is `openclaw-cli-smoke.test.ts`: the OpenClaw CLI refused
 to run because the local default Node is **v22.14.0** while the project (correctly)
@@ -111,6 +111,7 @@ Severity: **High** (fix before next release) · **Medium** (worth doing in this 
 ### High
 
 #### H1 — A core test can silently pass with **zero assertions**
+
 `tests/unit/monitor.test.ts:49-66`
 
 `runIfServerAllowed()` swallows `EPERM`/`listen` errors and `return`s. Every `it(...)` in
@@ -129,6 +130,7 @@ skipped test is reported as skipped rather than passed. Silent pass is the one o
 avoid.
 
 #### H2 — `// @ts-nocheck` disables type checking on the plugin-contract test
+
 `tests/unit/channel.test.ts:1`
 
 This 448-line file is the primary guard on the public `ChannelPlugin` surface (config,
@@ -145,6 +147,7 @@ types). If a couple of lines genuinely need suppression, prefer line-scoped
 ### Medium
 
 #### M1 — Vestigial `enabled` flags create dead branches in the hot path
+
 `src/security.ts:252,257` → `src/monitor.ts:186,197-199`
 
 `resolveGroupMeSecurity` hard-codes `replay.enabled: true` and `rateLimit.enabled: true`
@@ -155,12 +158,13 @@ with no config path to set them false. Consequently:
   is **unreachable**.
 
 So the `enabled` fields and the disabled-branch are dead, and they imply a toggle that
-doesn't exist. The README correctly advertises replay/rate-limit as *always on*.
+doesn't exist. The README correctly advertises replay/rate-limit as _always on_.
 
 **Recommendation (pick one):**
-- *Simplify (matches "always on" intent):* drop `enabled` from the resolved `replay`/
+
+- _Simplify (matches "always on" intent):_ drop `enabled` from the resolved `replay`/
   `rateLimit` types and delete the dead guards in `monitor.ts`. Behavior is identical.
-- *Or make it real:* add `security.replay.enabled` / `security.rateLimit.enabled` to the
+- _Or make it real:_ add `security.replay.enabled` / `security.rateLimit.enabled` to the
   Zod schema and wire them through. Only do this if you actually want operators to disable
   them.
 
@@ -168,12 +172,13 @@ Given the breaking-changes-OK stance and the desire to trim cruft, the simplify 
 cleaner.
 
 #### M2 — No warning when `callbackToken` is unset → webhook runs with **no token auth**
+
 `src/security.ts:298-301`, `src/monitor.ts:112-119`, handler init `src/monitor.ts:221-226`
 
 When `callbackToken` is empty, `verifyCallbackAuth` returns
 `{ ok: false, reason: "disabled" }`, and `monitor.ts:113` deliberately lets `"disabled"`
 through (`auth.reason !== "disabled"`). That's a defensible default, **but** the only
-remaining inbound gate is group binding — and `group_id` is *not* secret (it appears in the
+remaining inbound gate is group binding — and `group_id` is _not_ secret (it appears in the
 GroupMe app, URLs, etc.). So a manual/CLI setup that configures `groupId` but omits
 `callbackToken` silently accepts unauthenticated callbacks from anyone who learns the path
 and group id.
@@ -187,17 +192,18 @@ this only bites non-interactive setups — exactly the ones with no human watchi
 token-authenticated"). Cheap defense-in-depth; no behavior change for configured users.
 
 #### M3 — Shared `groupHistories` map has a read/clear race across concurrent inbound handlers
+
 `src/inbound.ts:280-307`, `src/monitor.ts:283-297`
 
 `handleGroupMeInbound` runs un-awaited and concurrently (up to `maxConcurrent`). For a
 mentioned message it reads `groupHistories.get(groupId)`, clears the bucket, then `await`s
-session recording and dispatch. Two near-simultaneous mentions in the *same* group can
+session recording and dispatch. Two near-simultaneous mentions in the _same_ group can
 interleave at those awaits: handler A snapshots+clears, handler B then snapshots an empty
 bucket. Worst case is duplicated or lost buffered context for one message — not a crash,
 not a security issue.
 
 The existing test `inbound.history-buffer.test.ts` ("preserves messages buffered while
-mention dispatch is in flight") covers the *sequential* re-buffer case but not concurrent
+mention dispatch is in flight") covers the _sequential_ re-buffer case but not concurrent
 mentions.
 
 **Recommendation:** low-urgency. If you want determinism, serialize per-group inbound
@@ -205,6 +211,7 @@ processing (a tiny per-`groupId` promise chain) or snapshot+clear atomically bef
 first `await`. Otherwise, document it as an accepted edge case. Worth a test either way.
 
 #### M4 — Heavy duplication of test scaffolding (~200+ lines)
+
 `tests/unit/inbound.context.test.ts`, `inbound.delivery.test.ts`,
 `inbound.command-bypass.test.ts`, `inbound.history-buffer.test.ts`
 (plus `monitor.test.ts`, `channel.test.ts`)
@@ -224,9 +231,10 @@ This is pure win with no behavior risk.
 ### Low
 
 #### L1 — `knip` is configured so it can't catch dead exports
+
 `knip.json`
 
-`entry` lists `src/**/*.ts` and `tests/**/*.ts`. Knip never flags exports *of entry files*,
+`entry` lists `src/**/*.ts` and `tests/**/*.ts`. Knip never flags exports _of entry files_,
 so every export in the repo is exempt — knip currently only verifies unused files and
 unused dependencies. That's why `knip` is green even though, e.g., `hasImageAttachment`
 (`src/parse.ts:177`) is exported but only used internally.
@@ -237,6 +245,7 @@ sidecars, `setup-entry.ts`, and the test files) and let `src/**/*.ts` be covered
 few (`hasImageAttachment`, possibly `inflightCount`) — un-export or keep deliberately.
 
 #### L2 — `gateway.startAccount` sets `running: true` but never `running: false` / `lastStopAt`
+
 `src/channel.ts:403-429`
 
 On start it `setStatus({ running: true, lastStartAt })`; on abort (both the
@@ -251,6 +260,7 @@ resolution. If not, add `ctx.setStatus({ running: false, lastStopAt: Date.now() 
 abort paths.
 
 #### L3 — Per-request O(n) pruning in replay cache and rate limiter
+
 `src/replay-cache.ts:18,36-43`, `src/rate-limit.ts:56-62,109-126`
 
 Every webhook does a full `Map` scan to prune expired entries (`pruneExpired`,
@@ -262,6 +272,7 @@ switch to lazy/amortized pruning (prune a slice per call, or only when size cros
 threshold).
 
 #### L4 — `0` for byte/size config silently becomes the default
+
 `src/security.ts:72-77` (`positiveIntOrDefault`)
 
 `maxDownloadBytes: 0` (or any non-positive) resolves to the 15 MB default rather than "deny
@@ -278,8 +289,8 @@ note it in docs if you care, otherwise leave.
   SDK as SecretRefs. Fix the sentence to avoid misleading future work.
 
 - **N2 — `mediaMaxMb` undocumented and conceptually overlaps `security.media.maxDownloadBytes`.**
-  Both exist and are real: `mediaMaxMb` is the SDK-level *inbound* media cap; `maxDownloadBytes`
-  is this plugin's *outbound* media-fetch cap. They're easy to confuse. Consider a one-line
+  Both exist and are real: `mediaMaxMb` is the SDK-level _inbound_ media cap; `maxDownloadBytes`
+  is this plugin's _outbound_ media-fetch cap. They're easy to confuse. Consider a one-line
   note in the README config reference clarifying inbound-vs-outbound, since `mediaMaxMb`
   isn't listed there at all.
 

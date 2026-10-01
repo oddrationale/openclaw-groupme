@@ -8,6 +8,7 @@ import {
   uploadGroupMeImage,
 } from "../../src/send.js";
 import type { CoreConfig } from "../../src/types.js";
+import { requestJson, requestUrl } from "../helpers/fetch.js";
 
 describe("sendGroupMeMessage", () => {
   it("sends text message", async () => {
@@ -28,8 +29,8 @@ describe("sendGroupMeMessage", () => {
       throw new Error("missing fetch call");
     }
     const [url, options] = firstCall;
-    expect(String(url)).toBe("https://api.groupme.com/v3/bots/post");
-    const body = JSON.parse(String(options?.body));
+    expect(requestUrl(url)).toBe("https://api.groupme.com/v3/bots/post");
+    const body = requestJson(options) as Record<string, unknown>;
     expect(body).toEqual({ bot_id: "bot-1", text: "hello" });
   });
 
@@ -51,7 +52,7 @@ describe("sendGroupMeMessage", () => {
       throw new Error("missing fetch call");
     }
     const [, options] = firstCall;
-    const body = JSON.parse(String(options?.body));
+    const body = requestJson(options) as Record<string, unknown>;
     expect(body.picture_url).toBe("https://i.groupme.com/abc");
   });
 
@@ -213,13 +214,12 @@ describe("high-level send helpers", () => {
       },
     };
 
-    const fetchMock = vi.fn(async () =>
-      Promise.resolve(
+    const fetchMock = vi.fn(
+      async () =>
         new Response("text", {
           status: 200,
           headers: { "content-type": "text/plain" },
         }),
-      ),
     );
 
     await expect(
@@ -266,8 +266,8 @@ describe("high-level send helpers", () => {
       },
     };
 
-    const fetchMock = vi.fn(async () =>
-      Promise.resolve(
+    const fetchMock = vi.fn(
+      async () =>
         new Response(Buffer.from("image-bytes"), {
           status: 200,
           headers: {
@@ -275,7 +275,6 @@ describe("high-level send helpers", () => {
             "content-length": "11",
           },
         }),
-      ),
     );
 
     await expect(
@@ -607,13 +606,13 @@ describe("high-level send helpers", () => {
       },
     };
     const slowDownload = () =>
-      new Promise<Response>((resolve) =>
+      new Promise<Response>((resolve) => {
         setTimeout(
           () =>
             resolve(new Response(Buffer.from("img"), { headers: { "content-type": "image/png" } })),
           10,
-        ),
-      );
+        );
+      });
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(slowDownload)
@@ -644,6 +643,7 @@ describe("high-level send helpers", () => {
         channel: {
           media: {
             readRemoteMediaBuffer: vi.fn(async () => {
+              // oxlint-disable-next-line typescript/only-throw-error -- exercises the non-Error rejection path
               throw "string failure";
             }),
           },
@@ -733,7 +733,7 @@ describe("high-level send helpers", () => {
 
 function okFetchSequence(order: string[]) {
   return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-    const url = String(input);
+    const url = requestUrl(input);
     order.push(`fetch:${url}`);
     if (url.endsWith("/pictures")) {
       return new Response(JSON.stringify({ payload: { picture_url: "https://i.groupme.com/p" } }));
@@ -914,7 +914,7 @@ describe("local media via host mediaReadFile", () => {
       "fetch:https://api.groupme.com/v3/bots/post",
     ]);
     expect(uploadContentType(fetchMock)).toBe("image/png");
-    const post = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    const post = requestJson(fetchMock.mock.calls[1]?.[1]);
     expect(post).toEqual({
       bot_id: "bot-1",
       text: "chart",

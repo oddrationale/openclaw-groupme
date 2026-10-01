@@ -1,5 +1,14 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
+// node:http ignores a listener's return value; keep async handlers from posing as void ones.
+export function serveAsync(
+  handler: (request: IncomingMessage, response: ServerResponse) => Promise<void>,
+): (request: IncomingMessage, response: ServerResponse) => void {
+  return (request, response) => {
+    void handler(request, response);
+  };
+}
+
 export type RecordedRequest = {
   method: string;
   path: string;
@@ -24,40 +33,42 @@ export async function startTestHttpServer(
   handler: (request: RecordedRequest, response: ServerResponse) => void | Promise<void>,
 ): Promise<TestHttpServer> {
   const requests: RecordedRequest[] = [];
-  const server = createServer(async (incoming, response) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of incoming) {
-      chunks.push(Buffer.from(chunk));
-    }
-
-    const body = Buffer.concat(chunks).toString("utf8");
-    let json: unknown = null;
-    if (body) {
-      try {
-        json = JSON.parse(body);
-      } catch {
-        json = null;
+  const server = createServer(
+    serveAsync(async (incoming, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of incoming) {
+        chunks.push(Buffer.from(chunk));
       }
-    }
 
-    const url = new URL(incoming.url ?? "/", "http://localhost");
-    const request: RecordedRequest = {
-      method: incoming.method ?? "",
-      path: url.pathname,
-      query: url.searchParams,
-      headers: incoming.headers,
-      body,
-      json,
-    };
-    requests.push(request);
+      const body = Buffer.concat(chunks).toString("utf8");
+      let json: unknown = null;
+      if (body) {
+        try {
+          json = JSON.parse(body);
+        } catch {
+          json = null;
+        }
+      }
 
-    try {
-      await handler(request, response);
-    } catch {
-      response.statusCode = 500;
-      response.end("Internal Server Error");
-    }
-  });
+      const url = new URL(incoming.url ?? "/", "http://localhost");
+      const request: RecordedRequest = {
+        method: incoming.method ?? "",
+        path: url.pathname,
+        query: url.searchParams,
+        headers: incoming.headers,
+        body,
+        json,
+      };
+      requests.push(request);
+
+      try {
+        await handler(request, response);
+      } catch {
+        response.statusCode = 500;
+        response.end("Internal Server Error");
+      }
+    }),
+  );
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -113,8 +124,11 @@ export async function startNodeHandlerServer(
 function closeServer(server: Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      if (error) reject(error);
-      else resolve();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
     });
   });
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { confirmGroupMeBotMessageId, sendGroupMeMedia, sendGroupMeText } from "../../src/send.js";
 import type { CoreConfig } from "../../src/types.js";
+import { requestUrl } from "../helpers/fetch.js";
 
 type Listed = {
   id?: unknown;
@@ -50,7 +51,7 @@ describe("confirmGroupMeBotMessageId", () => {
     });
 
     expect(id).toBe("match-1");
-    const url = new URL(String(fetchFn.mock.calls[0]?.[0]));
+    const url = new URL(requestUrl(fetchFn.mock.calls[0]?.[0]));
     expect(url.origin + url.pathname).toBe("https://api.groupme.com/v3/groups/g%201/messages");
     expect(url.searchParams.get("token")).toBe("token-1");
     expect(url.searchParams.get("limit")).toBe("20");
@@ -199,7 +200,7 @@ describe("send helpers with confirmMessageId", () => {
 
   function routedFetch(messages: Listed[]) {
     return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-      const url = String(input);
+      const url = requestUrl(input);
       if (url.endsWith("/bots/post")) {
         return new Response("", { status: 202 });
       }
@@ -232,7 +233,7 @@ describe("send helpers with confirmMessageId", () => {
     });
     expect(result.messageId).toBe("text-id");
     const lookup = fetchFn.mock.calls
-      .map(([input]) => String(input))
+      .map(([input]) => requestUrl(input))
       .find((url) => url.includes("/messages"));
     expect(lookup).toContain("/groups/g7/messages");
   });
@@ -255,7 +256,7 @@ describe("send helpers with confirmMessageId", () => {
     });
     expect(result.messageId).toBe("media-id");
     const lookup = fetchFn.mock.calls
-      .map(([input]) => String(input))
+      .map(([input]) => requestUrl(input))
       .find((url) => url.includes("/messages"));
     expect(lookup).toContain("/groups/cfg-group/messages");
   });

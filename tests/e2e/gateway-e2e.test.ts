@@ -19,6 +19,7 @@ import {
   startMockModel,
   waitFor,
   writeGatewayConfig,
+  stringField,
 } from "./harness.js";
 
 // Full pipeline against a real OpenClaw gateway: GroupMe webhook -> security
@@ -32,7 +33,7 @@ describe("GroupMe gateway end-to-end (hermetic)", () => {
   let groupme: FakeGroupMe;
   let gateway: RunningGateway;
 
-  const postTexts = () => groupme.posts.map((post) => String(post.text ?? ""));
+  const postTexts = () => groupme.posts.map((post) => stringField(post, "text"));
 
   beforeAll(async () => {
     groupme = await startFakeGroupMe();
@@ -165,7 +166,7 @@ describe("GroupMe gateway end-to-end (hermetic)", () => {
     expect(response.status).toBe(200);
 
     const post = await waitFor(
-      () => groupme.posts.find((candidate) => String(candidate.text ?? "").includes(nonce)),
+      () => groupme.posts.find((candidate) => stringField(candidate, "text").includes(nonce)),
       {
         timeoutMs: 90_000,
         description: `media reply containing ${nonce}; posts=${JSON.stringify(groupme.posts)}\n${gateway.output()}`,

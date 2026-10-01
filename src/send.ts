@@ -148,7 +148,9 @@ export async function confirmGroupMeBotMessageId(params: {
   // GroupMe timestamps are whole seconds; allow for clock skew between hosts.
   const sentAfterSeconds = Math.floor(params.sentAt / 1000) - 5;
   for (const delayMs of params.delaysMs ?? CONFIRM_DELAYS_MS) {
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await new Promise((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
     if (params.signal?.aborted) {
       return undefined;
     }
@@ -183,7 +185,9 @@ export async function confirmGroupMeBotMessageId(params: {
 
 function extractPictureUrl(value: unknown): string | null {
   const url = (value as { payload?: { picture_url?: unknown } })?.payload?.picture_url;
-  if (typeof url !== "string") return null;
+  if (typeof url !== "string") {
+    return null;
+  }
   return url.trim() || null;
 }
 
@@ -247,7 +251,7 @@ async function downloadRemoteMedia(params: {
       return { data: fetched.buffer, contentType };
     } catch (error) {
       if (isSsrfRelatedError(error)) {
-        throw new Error(`GroupMe media download blocked by SSRF policy`);
+        throw new Error(`GroupMe media download blocked by SSRF policy`, { cause: error });
       }
       throw error;
     }
@@ -290,7 +294,7 @@ async function downloadRemoteMedia(params: {
     }
   } catch (error) {
     if (error instanceof SsrFBlockedError) {
-      throw new Error(`GroupMe media download blocked by SSRF policy`);
+      throw new Error(`GroupMe media download blocked by SSRF policy`, { cause: error });
     }
     throw error;
   }

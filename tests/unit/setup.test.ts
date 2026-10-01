@@ -10,7 +10,7 @@ type Contract = typeof groupmeSetupContract;
 function requireFn<TKey extends keyof Contract>(key: TKey): NonNullable<Contract[TKey]> {
   const fn = groupmeSetupContract[key];
   if (!fn) {
-    throw new Error(`expected setupContract.${String(key)}`);
+    throw new Error(`expected setupContract.${key}`);
   }
   return fn as NonNullable<Contract[TKey]>;
 }
@@ -45,7 +45,7 @@ describe("groupmeSetupContract shape", () => {
 
   it("publishes every setup field with its key, CLI flag, and sensitivity", () => {
     expect(groupmeSetupContract.metadata.fields).toEqual(
-      Object.entries(groupmeSetupFields).map(([key, field]) => ({ ...field, key })),
+      Object.entries(groupmeSetupFields).map(([key, field]) => Object.assign({}, field, { key })),
     );
     const sensitive = groupmeSetupContract.metadata.fields
       .filter((field) => "sensitive" in field && field.sensitive)

@@ -43,7 +43,9 @@ async function withServer(
   try {
     await fn(`http://127.0.0.1:${address.port}`);
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
   }
 }
 
@@ -139,7 +141,9 @@ function mockResponse(): MockResponse {
     body: "",
     setHeader() {},
     end(chunk?: string) {
-      if (chunk) res.body += chunk;
+      if (chunk) {
+        res.body += chunk;
+      }
     },
   };
   return res as unknown as MockResponse;
@@ -352,7 +356,9 @@ describe("createGroupMeWebhookHandler", () => {
       expect(response.status).toBe(200);
       expect(await response.text()).toBe("ok");
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
       expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
       const call = handleGroupMeInboundMock.mock.calls[0]?.[0] as
         | { historyLimit?: unknown; groupHistories?: unknown }
@@ -413,7 +419,9 @@ describe("createGroupMeWebhookHandler", () => {
       });
       expect(first.status).toBe(200);
       expect(second.status).toBe(200);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
       expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
     });
   });
@@ -513,7 +521,9 @@ describe("createGroupMeWebhookHandler", () => {
         body: JSON.stringify(buildPayload()),
       });
       expect(response.status).toBe(200);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
       expect(handleGroupMeInboundMock).toHaveBeenCalledTimes(1);
     });
   });

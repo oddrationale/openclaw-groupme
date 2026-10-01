@@ -49,9 +49,9 @@ function applyGroupMeConfig(params: {
         ...section,
         enabled: true,
         accounts: {
-          ...(section.accounts ?? {}),
+          ...section.accounts,
           [accountId]: {
-            ...(section.accounts?.[accountId] ?? {}),
+            ...section.accounts?.[accountId],
             ...updates,
             enabled: true,
           },
@@ -63,7 +63,7 @@ function applyGroupMeConfig(params: {
 
 function parsePublicDomain(raw: string): string {
   const trimmed = raw.trim();
-  let candidate = "";
+  let candidate: string;
   try {
     if (/^https?:\/\//i.test(trimmed)) {
       const url = new URL(trimmed);
@@ -245,7 +245,7 @@ export function createGroupMeOnboardingAdapter(
       );
 
       const botSpin = prompter.progress("Registering bot with GroupMe...");
-      let botId = "";
+      let botId: string;
       try {
         const bot = await createBotImpl({
           accessToken,
@@ -267,7 +267,7 @@ export function createGroupMeOnboardingAdapter(
           "GroupMe setup failed",
         );
         throw new Error("Failed to register GroupMe bot", {
-          cause: error instanceof Error ? error : undefined,
+          cause: error,
         });
       }
 
@@ -486,7 +486,7 @@ export function createGroupMeOnboardingAdapter(
             const detail = error instanceof Error ? `\n\nDetails: ${error.message}` : "";
             await prompter.note(`Failed to register bot.${detail}`, "Bot registration failed");
             throw new Error("Failed to register GroupMe bot", {
-              cause: error instanceof Error ? error : undefined,
+              cause: error,
             });
           }
         }
@@ -556,7 +556,7 @@ export function createGroupMeOnboardingAdapter(
       channels: {
         ...cfg.channels,
         groupme: {
-          ...(cfg.channels?.groupme ?? {}),
+          ...cfg.channels?.groupme,
           enabled: false,
         },
       },

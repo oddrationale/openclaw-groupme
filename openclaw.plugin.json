@@ -2,8 +2,12 @@
   "id": "groupme",
   "name": "GroupMe",
   "description": "GroupMe channel plugin for OpenClaw.",
-  "categories": ["channels"],
-  "channels": ["groupme"],
+  "categories": [
+    "channels"
+  ],
+  "channels": [
+    "groupme"
+  ],
   "activation": {
     "onStartup": false
   },
@@ -44,7 +48,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -63,7 +71,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -81,7 +93,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -99,7 +115,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   }
                 ]
@@ -129,7 +149,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -148,7 +172,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -166,7 +194,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -184,7 +216,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   }
                 ]
@@ -214,7 +250,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -233,7 +273,11 @@
                         "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -251,7 +295,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   },
                   {
@@ -269,7 +317,11 @@
                         "type": "string"
                       }
                     },
-                    "required": ["source", "provider", "id"],
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
                     "additionalProperties": false
                   }
                 ]
@@ -306,7 +358,10 @@
           "allowFrom": {
             "type": "array",
             "items": {
-              "type": ["string", "number"]
+              "type": [
+                "string",
+                "number"
+              ]
             }
           },
           "markdown": {
@@ -314,7 +369,12 @@
             "properties": {
               "tables": {
                 "type": "string",
-                "enum": ["off", "bullets", "code", "block"]
+                "enum": [
+                  "off",
+                  "bullets",
+                  "code",
+                  "block"
+                ]
               }
             },
             "additionalProperties": false
@@ -424,7 +484,9 @@
                     }
                   }
                 },
-                "required": ["allowPrivateNetworks"],
+                "required": [
+                  "allowPrivateNetworks"
+                ],
                 "additionalProperties": false
               },
               "logging": {
@@ -439,7 +501,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["redactSecrets", "logRejectedRequests"],
+                "required": [
+                  "redactSecrets",
+                  "logRejectedRequests"
+                ],
                 "additionalProperties": false
               },
               "commandBypass": {
@@ -454,7 +519,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["requireAllowFrom", "requireMentionForCommands"],
+                "required": [
+                  "requireAllowFrom",
+                  "requireMentionForCommands"
+                ],
                 "additionalProperties": false
               },
               "proxy": {
@@ -493,7 +561,9 @@
                     ]
                   }
                 },
-                "required": ["requireHttpsProto"],
+                "required": [
+                  "requireHttpsProto"
+                ],
                 "additionalProperties": false
               }
             },
@@ -536,7 +606,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -555,7 +629,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -573,7 +651,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -591,7 +673,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -621,7 +707,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -640,7 +730,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -658,7 +752,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -676,7 +774,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -706,7 +808,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -725,7 +831,11 @@
                               "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -743,7 +853,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -761,7 +875,11 @@
                               "type": "string"
                             }
                           },
-                          "required": ["source", "provider", "id"],
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -798,7 +916,10 @@
                 "allowFrom": {
                   "type": "array",
                   "items": {
-                    "type": ["string", "number"]
+                    "type": [
+                      "string",
+                      "number"
+                    ]
                   }
                 },
                 "markdown": {
@@ -806,7 +927,12 @@
                   "properties": {
                     "tables": {
                       "type": "string",
-                      "enum": ["off", "bullets", "code", "block"]
+                      "enum": [
+                        "off",
+                        "bullets",
+                        "code",
+                        "block"
+                      ]
                     }
                   },
                   "additionalProperties": false
@@ -916,7 +1042,9 @@
                           }
                         }
                       },
-                      "required": ["allowPrivateNetworks"],
+                      "required": [
+                        "allowPrivateNetworks"
+                      ],
                       "additionalProperties": false
                     },
                     "logging": {
@@ -931,7 +1059,10 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["redactSecrets", "logRejectedRequests"],
+                      "required": [
+                        "redactSecrets",
+                        "logRejectedRequests"
+                      ],
                       "additionalProperties": false
                     },
                     "commandBypass": {
@@ -946,7 +1077,10 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["requireAllowFrom", "requireMentionForCommands"],
+                      "required": [
+                        "requireAllowFrom",
+                        "requireMentionForCommands"
+                      ],
                       "additionalProperties": false
                     },
                     "proxy": {
@@ -985,14 +1119,18 @@
                           ]
                         }
                       },
-                      "required": ["requireHttpsProto"],
+                      "required": [
+                        "requireHttpsProto"
+                      ],
                       "additionalProperties": false
                     }
                   },
                   "additionalProperties": false
                 }
               },
-              "required": ["requireMention"],
+              "required": [
+                "requireMention"
+              ],
               "additionalProperties": false
             }
           },
@@ -1000,7 +1138,9 @@
             "type": "string"
           }
         },
-        "required": ["requireMention"],
+        "required": [
+          "requireMention"
+        ],
         "additionalProperties": false
       },
       "uiHints": {

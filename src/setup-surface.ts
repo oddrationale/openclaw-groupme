@@ -100,11 +100,21 @@ export const groupmeSetupContract = defineChannelSetupContract({
 
       const updates: Record<string, unknown> = { enabled: true };
       const botId = input.botId?.trim() || input.token?.trim();
-      if (botId) updates.botId = botId;
-      if (input.accessToken?.trim()) updates.accessToken = input.accessToken.trim();
-      if (input.callbackToken?.trim()) updates.callbackToken = input.callbackToken.trim();
-      if (input.groupId?.trim()) updates.groupId = input.groupId.trim();
-      if (input.botName?.trim()) updates.botName = input.botName.trim();
+      if (botId) {
+        updates.botId = botId;
+      }
+      if (input.accessToken?.trim()) {
+        updates.accessToken = input.accessToken.trim();
+      }
+      if (input.callbackToken?.trim()) {
+        updates.callbackToken = input.callbackToken.trim();
+      }
+      if (input.groupId?.trim()) {
+        updates.groupId = input.groupId.trim();
+      }
+      if (input.botName?.trim()) {
+        updates.botName = input.botName.trim();
+      }
       const webhookInput = input.webhookUrl?.trim() || input.webhookPath?.trim();
       if (webhookInput) {
         const parsed = parseWebhookSetupInput(webhookInput);
@@ -137,9 +147,9 @@ export const groupmeSetupContract = defineChannelSetupContract({
             ...section,
             enabled: true,
             accounts: {
-              ...(section.accounts ?? {}),
+              ...section.accounts,
               [accountId]: {
-                ...(section.accounts?.[accountId] ?? {}),
+                ...section.accounts?.[accountId],
                 ...updates,
               },
             },
@@ -149,9 +159,13 @@ export const groupmeSetupContract = defineChannelSetupContract({
     },
 
     resolveBindingAccountId: ({ cfg, accountId }) => {
-      if (accountId) return accountId;
+      if (accountId) {
+        return accountId;
+      }
       const ids = listGroupMeAccountIds(cfg as CoreConfig);
-      if (ids.length <= 1) return DEFAULT_ACCOUNT_ID;
+      if (ids.length <= 1) {
+        return DEFAULT_ACCOUNT_ID;
+      }
       const section = (cfg as CoreConfig).channels?.groupme;
       const explicitDefault = section?.defaultAccount?.trim();
       return explicitDefault ? resolveDefaultGroupMeAccountId(cfg as CoreConfig) : undefined;

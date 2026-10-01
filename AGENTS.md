@@ -12,7 +12,7 @@ The plugin is published to npm and ClawHub as `openclaw-groupme` and loaded by t
 
 ```bash
 npm test                                   # Unit tests (vitest)
-npm run check                              # lint + typecheck + unit + integration + build + manifest check + knip
+npm run check                              # lint + format check + typecheck + unit + integration + build + manifest check + knip
 npm run test:e2e                           # Real OpenClaw gateway e2e (stub model, fake GroupMe API)
 npm run typecheck                          # Type-check with tsc --noEmit
 npm run manifest:sync                      # Regenerate openclaw.plugin.json channelConfigs from the zod schema
@@ -43,6 +43,7 @@ When a GroupMe callback hits the webhook, `src/monitor.ts` runs a sequential dec
 9. **Rate limiting** (`src/rate-limit.ts`) — per-IP, per-sender, and global concurrency
 
 After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.ts` handles processing inside `runDetachedWebhookWork` (tracked across gateway drains):
+
 - Mention detection with botName, regex patterns, and agent regexes (`src/parse.ts`)
 - Sender allowlist (`allowFrom`), control-command authorization, and mention activation through `runtime.channel.inbound.ingress.resolveStable` (core channel ingress)
 - History buffering for `requireMention: true` mode via `createChannelHistoryWindow` (`src/history.ts`)
@@ -51,6 +52,7 @@ After acceptance, the response is sent immediately (`200 ok`) and `src/inbound.t
 ### Outbound
 
 `src/send.ts` handles sending messages back to GroupMe:
+
 - Text messages via the Bot API (`/v3/bots/post`)
 - Media: download remote image (with SSRF guard + MIME + size limits) → upload to GroupMe Image Service → send with `picture_url`
 - Uses `runtime.channel.media.readRemoteMediaBuffer` when the runtime is initialized, falling back to `fetchWithSsrFGuard` (`openclaw/plugin-sdk/ssrf-runtime`)
@@ -94,16 +96,16 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 
 **Format:** `<type>: <description>` (lowercase type, imperative description)
 
-| Type | Version bump | Use for |
-|------|-------------|---------|
-| `feat:` | minor (0.x.0) | New features or capabilities |
-| `fix:` | patch (0.0.x) | Bug fixes |
-| `feat!:` or `BREAKING CHANGE:` footer | major (x.0.0) | Breaking API/config changes |
-| `docs:` | none | Documentation only |
-| `ci:` | none | CI/CD workflow changes |
-| `chore:` | none | Maintenance, deps, tooling |
-| `refactor:` | none | Code changes that don't fix bugs or add features |
-| `test:` | none | Adding or updating tests |
+| Type                                  | Version bump  | Use for                                          |
+| ------------------------------------- | ------------- | ------------------------------------------------ |
+| `feat:`                               | minor (0.x.0) | New features or capabilities                     |
+| `fix:`                                | patch (0.0.x) | Bug fixes                                        |
+| `feat!:` or `BREAKING CHANGE:` footer | major (x.0.0) | Breaking API/config changes                      |
+| `docs:`                               | none          | Documentation only                               |
+| `ci:`                                 | none          | CI/CD workflow changes                           |
+| `chore:`                              | none          | Maintenance, deps, tooling                       |
+| `refactor:`                           | none          | Code changes that don't fix bugs or add features |
+| `test:`                               | none          | Adding or updating tests                         |
 
 Only `feat:`, `fix:`, and breaking changes trigger a release. Use the appropriate type so the changelog and version bump are correct.
 
