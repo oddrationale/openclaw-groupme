@@ -112,18 +112,21 @@ export function packTarball(destination: string): string {
 }
 
 function parseNpmJsonArray<T>(output: string): T[] {
-  // npm prints the --json array as an unindented "[" ... "]" block; anchor on
-  // those lines so lifecycle or notice text around it (which may contain
-  // brackets) is not swept into the parse.
-  const match = /^\[$[\s\S]*?^\]$/m.exec(output);
+  // npm prints --json output as an unindented block: an array up to npm 11, an
+  // object keyed by package name from npm 12 (which openclaw now depends on, so
+  // it can be the npm on PATH). Anchor on the block's own lines so text around
+  // it is not swept into the parse.
+  const match = /^(?:\[$[\s\S]*?^\]|\{$[\s\S]*?^\})$/m.exec(output);
   if (!match) {
-    throw new Error(`Unable to find JSON array in npm output: ${output}`);
+    throw new Error(`Unable to find JSON output from npm: ${output}`);
   }
+  let parsed: unknown;
   try {
-    return JSON.parse(match[0]) as T[];
+    parsed = JSON.parse(match[0]);
   } catch (error) {
-    throw new Error(`Unable to parse JSON array in npm output: ${output}`, { cause: error });
+    throw new Error(`Unable to parse JSON output from npm: ${output}`, { cause: error });
   }
+  return (Array.isArray(parsed) ? parsed : Object.values(parsed as Record<string, T>)) as T[];
 }
 
 export function readRootPackageJson(): {
