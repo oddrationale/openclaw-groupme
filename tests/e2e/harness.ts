@@ -79,7 +79,11 @@ function latestUserNonce(messages: unknown): string | undefined {
     const text = messageText((message as JsonObject).content);
     // OpenClaw appends an internal-context user message (conversation info and
     // buffered group history); the nonce the user just sent lives in the turn body.
-    if (text.includes("<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>")) {
+    // 2026.10 replaced the BEGIN marker with an "OpenClaw runtime context:" header.
+    if (
+      text.includes("<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>") ||
+      text.startsWith("OpenClaw runtime context:")
+    ) {
       continue;
     }
     const hits = text.match(NONCE_PATTERN);
