@@ -112,12 +112,18 @@ export function packTarball(destination: string): string {
 }
 
 function parseNpmJsonArray<T>(output: string): T[] {
-  const start = output.indexOf("[");
-  const end = output.lastIndexOf("]");
-  if (start < 0 || end < start) {
+  // npm prints the --json array as an unindented "[" ... "]" block; anchor on
+  // those lines so lifecycle or notice text around it (which may contain
+  // brackets) is not swept into the parse.
+  const match = /^\[$[\s\S]*?^\]$/m.exec(output);
+  if (!match) {
     throw new Error(`Unable to find JSON array in npm output: ${output}`);
   }
-  return JSON.parse(output.slice(start, end + 1)) as T[];
+  try {
+    return JSON.parse(match[0]) as T[];
+  } catch (error) {
+    throw new Error(`Unable to parse JSON array in npm output: ${output}`, { cause: error });
+  }
 }
 
 export function readRootPackageJson(): {
