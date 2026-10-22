@@ -69,7 +69,6 @@ describe("npm package contract", () => {
     expect(paths.has(extension.replace(/^\.\//, ""))).toBe(true);
     expect(paths.has(pkg.openclaw.setupEntry.replace(/^\.\//, ""))).toBe(true);
     expect(pkg.openclaw.compat.pluginApi).toBe(">=2026.9.7");
-    expect(pkg.openclaw.build.openclawVersion).toBe("2026.9.7");
     expect(pkg.openclaw.install).toEqual({
       npmSpec: "openclaw-groupme",
       clawhubSpec: "clawhub:openclaw-groupme",

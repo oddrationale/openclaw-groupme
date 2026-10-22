@@ -235,12 +235,12 @@ Do not add a required live `deliverOutboundPayloads` test. The public CLI live s
 If debugging requires a narrower harness, use it as a deterministic integration test against a fake GroupMe HTTP server, not as an additional live smoke. Possible debug imports:
 
 ```ts
-import { deliverOutboundPayloads } from "openclaw/plugin-sdk/outbound-runtime";
 import {
   createPluginRuntimeMock,
   createTestRegistry,
   setActivePluginRegistry,
 } from "openclaw/plugin-sdk/channel-test-helpers";
+import { deliverOutboundPayloads } from "openclaw/plugin-sdk/outbound-runtime";
 import { groupmePlugin } from "../../dist/channel-plugin-api.js";
 import { setGroupMeRuntime } from "../../dist/runtime-setter-api.js";
 ```
