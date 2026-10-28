@@ -4,7 +4,7 @@ Thanks for helping improve `openclaw-groupme`.
 
 ## Setup
 
-Use Node.js 24.16.0 or newer on 24.x, or 26.1.0 or newer (OpenClaw 2026.9.7 requires it). The CI matrix checks Node 24 and 26.
+Use Node.js 24.22.1 or newer on 24.x, or 26.12.1 or newer, to install the dev dependencies (the pinned `openclaw` 2026.10.6 dev dependency refuses older Node). The published plugin itself still supports Node 24.16.0+ / 26.1.0+, as `engines` says. The CI matrix checks the latest Node 24 and 26.
 
 ```bash
 npm ci
