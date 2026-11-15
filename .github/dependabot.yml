@@ -11,6 +11,11 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # openclaw pins zod to an exact version; a newer root zod installs a second
+      # copy and the config schema stops typechecking against the SDK. Let openclaw
+      # updates move zod instead. Drop this once openclaw stops pinning zod exactly.
+      - dependency-name: "zod"
 
   - package-ecosystem: github-actions
     directory: /

@@ -24,6 +24,12 @@ function isolatedOpenClawEnv(home: string): NodeJS.ProcessEnv {
   };
 }
 
+const storeRef = {
+  source: "store",
+  provider: "default",
+  id: expect.stringMatching(/^CHANNEL_SETUP_/),
+};
+
 function readGroupMeConfig(home: string): Record<string, unknown> & {
   accounts?: Record<string, Record<string, unknown>>;
 } {
@@ -148,18 +154,19 @@ describe("OpenClaw CLI plugin smoke", () => {
       const groupmeConfig = JSON.parse(groupmeConfigOutput) as {
         enabled?: boolean;
         name?: string;
-        botId?: string;
+        botId?: unknown;
       };
-      // Sensitive setup fields are redacted by `config get`; the stored value is intact.
+      // Since 2026.11 `channels add` moves sensitive setup fields into the secret store
+      // and writes a store SecretRef; `config get` redacts the ref's id.
       expect(groupmeConfig).toEqual(
         expect.objectContaining({
           enabled: true,
           name: "Probe",
-          botId: "__OPENCLAW_REDACTED__",
+          botId: { source: "store", provider: "default", id: "__OPENCLAW_REDACTED__" },
         }),
       );
       expect(readGroupMeConfig(tempHome)).toEqual(
-        expect.objectContaining({ enabled: true, name: "Probe", botId: "fake-bot" }),
+        expect.objectContaining({ enabled: true, name: "Probe", botId: storeRef }),
       );
 
       const configuredChannelsOutput = run(
@@ -212,12 +219,19 @@ describe("OpenClaw CLI plugin smoke", () => {
       expect(readGroupMeConfig(tempHome).accounts?.work).toEqual(
         expect.objectContaining({
           enabled: true,
-          botId: "work-bot",
+          botId: storeRef,
           groupId: "42",
           webhookPath: "/gm/work",
-          callbackToken: "cb-secret",
+          callbackToken: storeRef,
         }),
       );
+
+      // Every stored ref (both bot ids and the callback token) must resolve.
+      const audit = JSON.parse(
+        run(process.execPath, [openclawCli, "secrets", "audit", "--json"], { env }),
+      ) as { status?: string; resolution?: { refsChecked?: number } };
+      expect(audit.status).toBe("clean");
+      expect(audit.resolution?.refsChecked).toBe(3);
 
       const dryRunOutput = run(
         process.execPath,
